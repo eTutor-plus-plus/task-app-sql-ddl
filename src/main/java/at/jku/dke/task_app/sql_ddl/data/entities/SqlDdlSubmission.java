@@ -10,28 +10,28 @@ import jakarta.validation.constraints.NotNull;
  * Represents a binary search input.
  */
 @Entity
-public class BinarySearchSubmission extends BaseSubmission<BinarySearchTask> {
+public class SqlDdlSubmission extends BaseSubmission<SqlDdlTask> {
     @NotNull
     @Column(name = "submission", nullable = false)
     private String submission;
 
     /**
-     * Creates a new instance of class {@link BinarySearchSubmission}.
+     * Creates a new instance of class {@link SqlDdlSubmission}.
      */
-    public BinarySearchSubmission() {
+    public SqlDdlSubmission() {
     }
 
     /**
-     * Creates a new instance of class {@link BinarySearchSubmission}.
+     * Creates a new instance of class {@link SqlDdlSubmission}.
      *
      * @param submission The input.
      */
-    public BinarySearchSubmission(String submission) {
+    public SqlDdlSubmission(String submission) {
         this.submission = submission;
     }
 
     /**
-     * Creates a new instance of class {@link BinarySearchSubmission}.
+     * Creates a new instance of class {@link SqlDdlSubmission}.
      *
      * @param userId        The user id.
      * @param assignmentId  The assignment id.
@@ -41,7 +41,7 @@ public class BinarySearchSubmission extends BaseSubmission<BinarySearchTask> {
      * @param mode          The mode.
      * @param submission    The input.
      */
-    public BinarySearchSubmission(String userId, String assignmentId, BinarySearchTask task, String language, int feedbackLevel, SubmissionMode mode, String submission) {
+    public SqlDdlSubmission(String userId, String assignmentId, SqlDdlTask task, String language, int feedbackLevel, SubmissionMode mode, String submission) {
         super(userId, assignmentId, task, language, feedbackLevel, mode);
         this.submission = submission;
     }

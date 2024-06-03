@@ -32,7 +32,7 @@ CREATE TABLE submission
     mode              submission_mode NOT NULL,
     feedback_level    INT             NOT NULL,
     evaluation_result JSONB,
-    submission        VARCHAR(255), -- custom column
+    submission        TEXT, -- custom column
     CONSTRAINT submission_pk PRIMARY KEY (id),
     CONSTRAINT submission_task_fk FOREIGN KEY (task_id) REFERENCES task (id)
         ON DELETE CASCADE
