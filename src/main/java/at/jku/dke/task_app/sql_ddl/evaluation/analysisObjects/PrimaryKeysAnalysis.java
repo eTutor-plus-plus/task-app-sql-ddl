@@ -13,7 +13,17 @@ public class PrimaryKeysAnalysis extends AbstractDDLCriterionAnalysis implements
     //region Fields
     private List<ErrorTupel> missingPrimaryKeys;
     private List<ErrorTupel> surplusPrimaryKeys;
+    int totalPrimaryKeys;
     //endregion
+
+
+    public int getTotalPrimaryKeys() {
+        return totalPrimaryKeys;
+    }
+
+    public void setTotalPrimaryKeys(int totalPrimaryKeys) {
+        this.totalPrimaryKeys = totalPrimaryKeys;
+    }
 
     /**
      * Creates a new instance of class Primary keys analysis.

@@ -232,9 +232,10 @@ public class DDLAnalyzer {
         try {
             ResultSet userRs = userMetadata.getTables(null, userSchema, null, new String[]{"TABLE"});
             ResultSet systemRS = exerciseMetadata.getTables(null, exerciseSchema, null, new String[]{"TABLE"});
-
+            int numberOfTables = 0;
             // Search for missing tables
             while (systemRS.next()) {
+                numberOfTables++;
                 String systemTable = systemRS.getString("TABLE_NAME");
                 while (userRs.next()) {
                     String userTable = userRs.getString("TABLE_NAME");
@@ -255,7 +256,7 @@ public class DDLAnalyzer {
                 userRs.beforeFirst();
                 exists = false;
             }
-
+            tablesAnalysis.setTotalNumOfTables(numberOfTables);
             // Reset variable
             systemRS.beforeFirst();
 
@@ -305,7 +306,7 @@ public class DDLAnalyzer {
      */
     private DDLCriterionAnalysis analyzeColumns() {
         this.logger.info("Analyze columns");
-
+        boolean error = false;
         ColumnsAnalysis columnsAnalysis = new ColumnsAnalysis();
         boolean exists = false;
 
@@ -315,6 +316,7 @@ public class DDLAnalyzer {
             // Run through all tables and look at the columns
             while (userTables.next()) {
                 String tableName = userTables.getString("TABLE_NAME");
+                ColumnsOfTable columnsOfTable = new ColumnsOfTable(tableName);
 
                 ResultSet userColumns = userMetadata.getColumns(null, userSchema, tableName, null);
                 ResultSet systemColumns = exerciseMetadata.getColumns(null, exerciseSchema, tableName, null);
@@ -338,7 +340,8 @@ public class DDLAnalyzer {
                                 String sd = systemColumns.getString("TYPE_NAME");
                                 String ud = userColumns.getString("TYPE_NAME");
                                 if (!(sd.toLowerCase().contains(VARCHAR) && ud.toLowerCase().contains(VARCHAR)) || !(sd.toLowerCase().contains(DECIMAL) && ud.toLowerCase().contains(DECIMAL))) {
-                                    columnsAnalysis.addWrongDatatypeColumn(new ErrorTupel(tableName, systemColumn));
+                                    columnsOfTable.addWrongDatatypeColumn(new ErrorTupel(tableName, systemColumn));
+                                    error = true;
                                 }
                             }
 
@@ -347,7 +350,8 @@ public class DDLAnalyzer {
                             int userNullable = userColumns.getInt("NULLABLE");
 
                             if (systemNullable != userNullable) {
-                                columnsAnalysis.addWrongNullColumn(new ErrorTupel(tableName, systemColumn));
+                                columnsOfTable.addWrongNullColumn(new ErrorTupel(tableName, systemColumn));
+                                error = true;
                             }
 
                             // Check default value
@@ -358,7 +362,8 @@ public class DDLAnalyzer {
                             // Check like this and not with equals to avoid null exception
                             if (systemDefault != userDefault) {
                                 if (systemDefault == null || !systemDefault.equals(userDefault)) {
-                                    columnsAnalysis.addWrongDefaultColumn(new ErrorTupel(tableName, systemColumn));
+                                    columnsOfTable.addWrongDefaultColumn(new ErrorTupel(tableName, systemColumn));
+                                    error = true;
                                 }
                             }
 
@@ -368,7 +373,8 @@ public class DDLAnalyzer {
 
                     // Check if the column exists
                     if (!exists) {
-                        columnsAnalysis.addMissingColumn(new ErrorTupel(tableName, systemColumn));
+                        columnsOfTable.addMissingColumn(new ErrorTupel(tableName, systemColumn));
+                        error = true;
                     }
 
                     // Reset variables
@@ -394,13 +400,15 @@ public class DDLAnalyzer {
 
                     // Check if the column exists
                     if (!exists) {
-                        columnsAnalysis.addSurplusColumn(new ErrorTupel(tableName, userColumn));
+                        columnsOfTable.addSurplusColumn(new ErrorTupel(tableName, userColumn));
+                        error = true;
                     }
 
                     // Reset variables
                     systemColumns.beforeFirst();
                     exists = false;
                 }
+                columnsAnalysis.addColumnsOfTable(columnsOfTable);
             }
         } catch (SQLException ex) {
             String msg = "";
@@ -412,7 +420,7 @@ public class DDLAnalyzer {
             columnsAnalysis.setAnalysisException(new AnalysisException(msg, ex));
         }
 
-        columnsAnalysis.setCriterionIsSatisfied(columnsAnalysis.isMissingColumnsEmpty() && columnsAnalysis.isSurplusColumnsEmpty() && columnsAnalysis.isWrongNullColumnsEmpty() && columnsAnalysis.isWrongDatatypeColumnsEmpty() && columnsAnalysis.isWrongDefaultColumnsEmpty());
+        columnsAnalysis.setCriterionIsSatisfied(!error);
         isEveryCriterionSatisfied = isEveryCriterionSatisfied && columnsAnalysis.isCriterionSatisfied();
         this.logger.info("Finished column analysis. Criterion satisfied: " + columnsAnalysis.isCriterionSatisfied());
         return columnsAnalysis;
@@ -425,7 +433,7 @@ public class DDLAnalyzer {
      */
     private DDLCriterionAnalysis analyzePrimaryKeys() {
         this.logger.info("Analyze primary keys");
-
+    int totalPrimaryKeys = 0;
         PrimaryKeysAnalysis primaryKeysAnalysis = new PrimaryKeysAnalysis();
         boolean exists = false;
 
@@ -437,8 +445,9 @@ public class DDLAnalyzer {
                 String tableName = userTables.getString("TABLE_NAME");
 
                 ResultSet userPrimaryKeys = userMetadata.getPrimaryKeys(null, userSchema, tableName);
-                ResultSet systemPrimaryKeys = exerciseMetadata.getPrimaryKeys(null, exerciseSchema, tableName);
 
+                ResultSet systemPrimaryKeys = exerciseMetadata.getPrimaryKeys(null, exerciseSchema, tableName);
+                totalPrimaryKeys += systemPrimaryKeys.getFetchSize();
                 // Search for missing primary keys
                 while (systemPrimaryKeys.next()) {
                     String systemColumn = systemPrimaryKeys.getString("COLUMN_NAME");
@@ -500,6 +509,7 @@ public class DDLAnalyzer {
 
         primaryKeysAnalysis.setCriterionIsSatisfied(primaryKeysAnalysis.isMissingPrimaryKeysEmpty() && primaryKeysAnalysis.isSurplusPrimaryKeysEmpty());
         this.logger.info("Finished primary key analysis. Criterion satisfied: " + primaryKeysAnalysis.isCriterionSatisfied());
+        primaryKeysAnalysis.setTotalPrimaryKeys(totalPrimaryKeys);
         return primaryKeysAnalysis;
     }
 
@@ -510,7 +520,7 @@ public class DDLAnalyzer {
      */
     private DDLCriterionAnalysis analyzeForeignKeys() {
         this.logger.info("Analyze foreign keys");
-
+        int totalForeignKeys = 0;
         ForeignKeysAnalysis foreignKeysAnalysis = new ForeignKeysAnalysis();
         boolean exists = false;
 
@@ -523,7 +533,7 @@ public class DDLAnalyzer {
 
                 ResultSet userForeignKeys = userMetadata.getImportedKeys(null, userSchema, tableName);
                 ResultSet systemForeignKeys = exerciseMetadata.getImportedKeys(null, exerciseSchema, tableName);
-
+                totalForeignKeys += systemForeignKeys.getFetchSize();
                 // Search for missing foreign keys
                 while (systemForeignKeys.next()) {
                     String systemColumn = systemForeignKeys.getString("FKCOLUMN_NAME");
@@ -602,6 +612,7 @@ public class DDLAnalyzer {
 
         foreignKeysAnalysis.setCriterionIsSatisfied(foreignKeysAnalysis.isMissingForeignKeysEmpty() && foreignKeysAnalysis.isSurplusForeignKeysEmpty() && foreignKeysAnalysis.isWrongUpdateForeignKeysEmpty() && foreignKeysAnalysis.isWrongDeleteForeignKeysEmpty());
         this.logger.info("Finished foreign key analysis. Criterion satisfied: " + foreignKeysAnalysis.isCriterionSatisfied());
+        foreignKeysAnalysis.setTotalForeignKeys(totalForeignKeys);
         return foreignKeysAnalysis;
     }
 

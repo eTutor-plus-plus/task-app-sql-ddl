@@ -14,6 +14,7 @@ public class TablesAnalysis extends AbstractDDLCriterionAnalysis implements DDLC
     //region Fields
     private List<String> missingTables;
     private List<String> surplusTables;
+    private int totalNumOfTables;
     //endregion
 
     /**
@@ -22,6 +23,16 @@ public class TablesAnalysis extends AbstractDDLCriterionAnalysis implements DDLC
     public TablesAnalysis() {
         this.missingTables = new ArrayList<>();
         this.surplusTables = new ArrayList<>();
+        this.totalNumOfTables = 0;
+    }
+
+
+    public int getTotalNumOfTables() {
+        return totalNumOfTables;
+    }
+
+    public void setTotalNumOfTables(int totalNumOfTables) {
+        this.totalNumOfTables = totalNumOfTables;
     }
 
     /**
@@ -138,4 +149,5 @@ public class TablesAnalysis extends AbstractDDLCriterionAnalysis implements DDLC
         this.surplusTables.remove(tables);
     }
     //endregion
+
 }

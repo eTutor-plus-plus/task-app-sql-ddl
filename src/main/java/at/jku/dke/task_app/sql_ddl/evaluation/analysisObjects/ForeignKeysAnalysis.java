@@ -15,9 +15,20 @@ public class ForeignKeysAnalysis extends AbstractDDLCriterionAnalysis implements
     private List<ErrorTupel> surplusForeignKeys;
     private List<ErrorTupel> wrongUpdateForeignKeys;
     private List<ErrorTupel> wrongDeleteForeignKeys;
+    int totalForeignKeys;
     //endregion
 
+
+    public int getTotalForeignKeys() {
+        return totalForeignKeys;
+    }
+
+    public void setTotalForeignKeys(int totalForeignKeys) {
+        this.totalForeignKeys = totalForeignKeys;
+    }
+
     /**
+     *
      * Creates a new instance of class Foreign keys analysis.
      */
     public ForeignKeysAnalysis() {
