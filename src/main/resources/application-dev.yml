@@ -7,8 +7,8 @@ logging:
 # Data
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5434/etutor_binary_search
-    username: etutor_binary_search
+    url: jdbc:postgresql://localhost:5434/etutor_sql_ddl
+    username: etutor_sql_ddl
     password: secret
   jpa:
     show-sql: true
@@ -33,3 +33,14 @@ clients:
       key: plag-check-key
       roles:
         - READ_SUBMISSION
+
+# JDBC
+jdbc:
+  url: jdbc:postgresql://localhost:5434/etutor_sql_ddl
+  admin:
+    username: etutor_sql_ddl
+    password: secret
+  max-pool-size: 10
+  max-lifetime: 1800000 # 30 minutes
+  connection-timeout: 15000 # 15 seconds
+  driverClassName: org.postgresql.Driver
