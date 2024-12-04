@@ -14,6 +14,7 @@ import java.util.List;
  * The type Ddl analyzer.
  */
 public class DDLAnalyzer {
+
     //region Constants
     private final String INTERNAL_ERROR = "This is an internal system error.";
     private final String CONTACT_ADMIN = "Please contact the system administrator.";
@@ -433,7 +434,7 @@ public class DDLAnalyzer {
      */
     private DDLCriterionAnalysis analyzePrimaryKeys() {
         this.logger.info("Analyze primary keys");
-    int totalPrimaryKeys = 0;
+        int totalPrimaryKeys = 0;
         PrimaryKeysAnalysis primaryKeysAnalysis = new PrimaryKeysAnalysis();
         boolean exists = false;
 

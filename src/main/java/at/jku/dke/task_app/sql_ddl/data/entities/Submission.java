@@ -7,31 +7,31 @@ import jakarta.persistence.Entity;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Represents a binary search input.
+ * Represents a sql-ddl input.
  */
 @Entity
-public class SqlDdlSubmission extends BaseSubmission<SqlDdlTask> {
+public class Submission extends BaseSubmission<SqlDdlTask> {
     @NotNull
     @Column(name = "submission", nullable = false)
     private String submission;
 
     /**
-     * Creates a new instance of class {@link SqlDdlSubmission}.
+     * Creates a new instance of class {@link Submission}.
      */
-    public SqlDdlSubmission() {
+    public Submission() {
     }
 
     /**
-     * Creates a new instance of class {@link SqlDdlSubmission}.
+     * Creates a new instance of class {@link Submission}.
      *
      * @param submission The input.
      */
-    public SqlDdlSubmission(String submission) {
+    public Submission(String submission) {
         this.submission = submission;
     }
 
     /**
-     * Creates a new instance of class {@link SqlDdlSubmission}.
+     * Creates a new instance of class {@link Submission}.
      *
      * @param userId        The user id.
      * @param assignmentId  The assignment id.
@@ -41,7 +41,7 @@ public class SqlDdlSubmission extends BaseSubmission<SqlDdlTask> {
      * @param mode          The mode.
      * @param submission    The input.
      */
-    public SqlDdlSubmission(String userId, String assignmentId, SqlDdlTask task, String language, int feedbackLevel, SubmissionMode mode, String submission) {
+    public Submission(String userId, String assignmentId, SqlDdlTask task, String language, int feedbackLevel, SubmissionMode mode, String submission) {
         super(userId, assignmentId, task, language, feedbackLevel, mode);
         this.submission = submission;
     }

@@ -12,7 +12,7 @@ class BinarySearchSubmissionTest {
         var expected = "test";
 
         // Act
-        var submission = new SqlDdlSubmission(expected);
+        var submission = new Submission(expected);
         var actual = submission.getSubmission();
 
         // Assert
@@ -22,7 +22,7 @@ class BinarySearchSubmissionTest {
     @Test
     void testGetSetSubmission() {
         // Arrange
-        var submission = new SqlDdlSubmission();
+        var submission = new Submission();
         var expected = "test";
 
         // Act

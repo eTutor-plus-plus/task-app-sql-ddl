@@ -371,10 +371,10 @@ public class EvaluationService {
                             .map(ErrorTupel::getError)
                             .collect(Collectors.toList()));
                     }
-//                    if(!constraintsAnalysis.isDmlStatementsWithMistakesEmpty())
-//                    {
-//                        s += "<br> Wrong DML Statements: " + String.join(", ", constraintsAnalysis.getDmlStatementsWithMistakes());
-//                    }
+                    if(!constraintsAnalysis.isDmlStatementsWithMistakesEmpty())
+                    {
+                        s += "<br> Wrong DML Statements: " + String.join(", ", constraintsAnalysis.getDmlStatementsWithMistakes());
+                    }
 
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.constraints", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), constraintsAnalysis.isCriterionSatisfied() ? null : s));
                 }
