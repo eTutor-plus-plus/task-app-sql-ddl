@@ -148,7 +148,13 @@ public class EvaluationService {
         userPwd = admin.getPwd(user);
         userSchema = admin.getSchema(user);
 
-        userConn = DBHelper.getUserConnection(user, userPwd, userSchema);
+        try {
+            userConn = DBHelper.getUserConnection(user, userPwd, userSchema);
+        } catch (Exception e) {
+            admin.releaseUser(user);
+            DBHelper.closeSystemConnectionWithSchema();
+            throw new RuntimeException(e);
+        }
 
         // Check if the user connection is successfully up
         if (userConn == null)
@@ -175,6 +181,10 @@ public class EvaluationService {
         try {
             analysis = analyzer.analyze(submission.submission().input(), analyzerConfig);
         } catch (SQLException e) {
+
+            DBHelper.resetUserConnection(userConn, user, userSchema);
+            admin.releaseUser(user);
+            DBHelper.closeSystemConnectionWithSchema();
             throw new RuntimeException(e);
         }
         DBHelper.resetUserConnection(userConn, user, userSchema);
@@ -208,7 +218,7 @@ public class EvaluationService {
 
             if (submission.mode().equals(SubmissionMode.RUN)) {
                 if (criterion.equals(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
-                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax",null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), criterionAnalysis.getAnalysisException() == null ? null : criterionAnalysis.getAnalysisException().getMessage()));
+                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), criterionAnalysis.getAnalysisException() == null ? null : criterionAnalysis.getAnalysisException().getMessage()));
                     break;
                 }
 
@@ -242,19 +252,19 @@ public class EvaluationService {
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), syntaxAnalysis.getErrorDescription()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_TABLES)) {
                     TablesAnalysis tablesAnalysis = (TablesAnalysis) criterionAnalysis;
-                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.tables", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), tablesAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingTables", null, Locale.of(submission.language()))+": " + tablesAnalysis.getMissingTables().size() + " <br> "+messageSource.getMessage("criterium.surplusTables", null, Locale.of(submission.language()))+": " + tablesAnalysis.getSurplusTables().size()));
+                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.tables", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), tablesAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingTables", null, Locale.of(submission.language())) + ": " + tablesAnalysis.getMissingTables().size() + " <br> " + messageSource.getMessage("criterium.surplusTables", null, Locale.of(submission.language())) + ": " + tablesAnalysis.getSurplusTables().size()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_COLUMNS)) {
                     ColumnsAnalysis columnsAnalysis = (ColumnsAnalysis) criterionAnalysis;
-                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.columns", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), columnsAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingColumns", null, Locale.of(submission.language()))+": " + columnsAnalysis.getColumnsOfTables().size()));
+                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.columns", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), columnsAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingColumns", null, Locale.of(submission.language())) + ": " + columnsAnalysis.getColumnsOfTables().size()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_PRIMARY_KEYS)) {
                     PrimaryKeysAnalysis primaryKeysAnalysis = (PrimaryKeysAnalysis) criterionAnalysis;
-                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.primaryKeys", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), primaryKeysAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingPrimaryKeys", null, Locale.of(submission.language()))+": "+ primaryKeysAnalysis.getMissingPrimaryKeys().size() + " <br>"+ messageSource.getMessage("criterium.surplusPrimaryKeys", null, Locale.of(submission.language())) +": " + primaryKeysAnalysis.getSurplusPrimaryKeys().size()));
+                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.primaryKeys", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), primaryKeysAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingPrimaryKeys", null, Locale.of(submission.language())) + ": " + primaryKeysAnalysis.getMissingPrimaryKeys().size() + " <br>" + messageSource.getMessage("criterium.surplusPrimaryKeys", null, Locale.of(submission.language())) + ": " + primaryKeysAnalysis.getSurplusPrimaryKeys().size()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_FOREIGN_KEYS)) {
                     ForeignKeysAnalysis foreignKeysAnalysis = (ForeignKeysAnalysis) criterionAnalysis;
-                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.foreignKeys", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), foreignKeysAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingForeignKeys", null, Locale.of(submission.language()))+": " + foreignKeysAnalysis.getMissingForeignKeys().size() + " <br> "+messageSource.getMessage("criterium.surplusForeignKeys", null, Locale.of(submission.language()))+": " + foreignKeysAnalysis.getSurplusForeignKeys().size() + " <br>"+messageSource.getMessage("criterium.wrongUpdateForeignKeys", null, Locale.of(submission.language()))+": " + foreignKeysAnalysis.getWrongUpdateForeignKeys().size() + messageSource.getMessage("criterium.wrongDeleteForeignKeys", null, Locale.of(submission.language())) + foreignKeysAnalysis.getWrongDeleteForeignKeys().size()));
+                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.foreignKeys", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), foreignKeysAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getMissingForeignKeys().size() + " <br> " + messageSource.getMessage("criterium.surplusForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getSurplusForeignKeys().size() + " <br>" + messageSource.getMessage("criterium.wrongUpdateForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getWrongUpdateForeignKeys().size() + messageSource.getMessage("criterium.wrongDeleteForeignKeys", null, Locale.of(submission.language())) + foreignKeysAnalysis.getWrongDeleteForeignKeys().size()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_CONSTRAINTS)) {
                     ConstraintsAnalysis constraintsAnalysis = (ConstraintsAnalysis) criterionAnalysis;
-                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.constraints", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), constraintsAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingConstraints", null, Locale.of(submission.language()))+": " + constraintsAnalysis.getMissingConstraints().size() + " <br> "+messageSource.getMessage("criterium.surplusConstraints", null, Locale.of(submission.language()))+": " + constraintsAnalysis.getSurplusConstraints().size()));
+                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.constraints", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), constraintsAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingConstraints", null, Locale.of(submission.language())) + ": " + constraintsAnalysis.getMissingConstraints().size() + " <br> " + messageSource.getMessage("criterium.surplusConstraints", null, Locale.of(submission.language())) + ": " + constraintsAnalysis.getSurplusConstraints().size()));
                 }
             }
             if (submission.feedbackLevel().equals(3)) {
@@ -267,11 +277,11 @@ public class EvaluationService {
                     TablesAnalysis tablesAnalysis = (TablesAnalysis) criterionAnalysis;
                     String s = "";
 
-                    if(!tablesAnalysis.isMissingTablesEmpty()) {
-                         s += messageSource.getMessage("criterium.missingTables", null, Locale.of(submission.language()))+": " + String.join(", ", tablesAnalysis.getMissingTables());
+                    if (!tablesAnalysis.isMissingTablesEmpty()) {
+                        s += messageSource.getMessage("criterium.missingTables", null, Locale.of(submission.language())) + ": " + String.join(", ", tablesAnalysis.getMissingTables());
                     }
-                    if(!tablesAnalysis.isSurplusTablesEmpty())
-                        s += "<br>"+messageSource.getMessage("criterium.surplusTables", null, Locale.of(submission.language()))+": " + String.join(", ", tablesAnalysis.getSurplusTables());
+                    if (!tablesAnalysis.isSurplusTablesEmpty())
+                        s += "<br>" + messageSource.getMessage("criterium.surplusTables", null, Locale.of(submission.language())) + ": " + String.join(", ", tablesAnalysis.getSurplusTables());
 
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.tables", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), tablesAnalysis.isCriterionSatisfied() ? null : s));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_COLUMNS)) {
@@ -280,27 +290,27 @@ public class EvaluationService {
                     String s = "";
                     for (ColumnsOfTable table : columnsAnalysis.getColumnsOfTables()) {
                         if (!table.isMissingColumnsEmpty()) {
-                            s += messageSource.getMessage("criterium.missingColumns", null, Locale.of(submission.language()))+": " + String.join(", ", table.getMissingColumns().stream()
+                            s += messageSource.getMessage("criterium.missingColumns", null, Locale.of(submission.language())) + ": " + String.join(", ", table.getMissingColumns().stream()
                                 .map(ErrorTupel::getError)
                                 .collect(Collectors.toList()));
                         }
                         if (!table.isSurplusColumnsEmpty()) {
-                            s += "<br> "+messageSource.getMessage("criterium.surplusColumns", null, Locale.of(submission.language()))+": " + String.join(", ", table.getSurplusColumns().stream()
+                            s += "<br> " + messageSource.getMessage("criterium.surplusColumns", null, Locale.of(submission.language())) + ": " + String.join(", ", table.getSurplusColumns().stream()
                                 .map(ErrorTupel::getError)
                                 .collect(Collectors.toList()));
                         }
                         if (!table.isWrongDatatypeColumnsEmpty()) {
-                            s += "<br> "+messageSource.getMessage("criterium.wrongDatatypeColumns", null, Locale.of(submission.language()))+": " + String.join(", ", table.getWrongDatatypeColumns().stream()
+                            s += "<br> " + messageSource.getMessage("criterium.wrongDatatypeColumns", null, Locale.of(submission.language())) + ": " + String.join(", ", table.getWrongDatatypeColumns().stream()
                                 .map(ErrorTupel::getError)
                                 .collect(Collectors.toList()));
                         }
                         if (!table.isWrongDefaultColumnsEmpty()) {
-                            s += "<br> "+messageSource.getMessage("criterium.wrongDefaultColumns", null, Locale.of(submission.language()))+": " + String.join(", ", table.getWrongDefaultColumns().stream()
+                            s += "<br> " + messageSource.getMessage("criterium.wrongDefaultColumns", null, Locale.of(submission.language())) + ": " + String.join(", ", table.getWrongDefaultColumns().stream()
                                 .map(ErrorTupel::getError)
                                 .collect(Collectors.toList()));
                         }
                         if (!table.isWrongNullColumnsEmpty()) {
-                            s += "<br> "+messageSource.getMessage("criterium.wrongNullColumns", null, Locale.of(submission.language()))+": " + String.join(", ", table.getWrongNullColumns().stream()
+                            s += "<br> " + messageSource.getMessage("criterium.wrongNullColumns", null, Locale.of(submission.language())) + ": " + String.join(", ", table.getWrongNullColumns().stream()
                                 .map(ErrorTupel::getError)
                                 .collect(Collectors.toList()));
                         }
@@ -311,15 +321,13 @@ public class EvaluationService {
                     assert criterionAnalysis instanceof PrimaryKeysAnalysis;
                     PrimaryKeysAnalysis primaryKeysAnalysis = (PrimaryKeysAnalysis) criterionAnalysis;
                     String s = "";
-                    if(!primaryKeysAnalysis.isMissingPrimaryKeysEmpty())
-                    {
-                        s += messageSource.getMessage("criterium.missingPrimaryKeys", null, Locale.of(submission.language()))+": " + String.join(", ", primaryKeysAnalysis.getMissingPrimaryKeys().stream()
+                    if (!primaryKeysAnalysis.isMissingPrimaryKeysEmpty()) {
+                        s += messageSource.getMessage("criterium.missingPrimaryKeys", null, Locale.of(submission.language())) + ": " + String.join(", ", primaryKeysAnalysis.getMissingPrimaryKeys().stream()
                             .map(ErrorTupel::getError)
                             .collect(Collectors.toList()));
                     }
-                    if(!primaryKeysAnalysis.isSurplusPrimaryKeysEmpty())
-                    {
-                        s += "<br> "+messageSource.getMessage("criterium.surplusPrimaryKeys", null, Locale.of(submission.language()))+": " + String.join(", ", primaryKeysAnalysis.getSurplusPrimaryKeys().stream()
+                    if (!primaryKeysAnalysis.isSurplusPrimaryKeysEmpty()) {
+                        s += "<br> " + messageSource.getMessage("criterium.surplusPrimaryKeys", null, Locale.of(submission.language())) + ": " + String.join(", ", primaryKeysAnalysis.getSurplusPrimaryKeys().stream()
                             .map(ErrorTupel::getError)
                             .collect(Collectors.toList()));
                     }
@@ -329,28 +337,24 @@ public class EvaluationService {
                     assert criterionAnalysis instanceof ForeignKeysAnalysis;
                     ForeignKeysAnalysis foreignKeysAnalysis = (ForeignKeysAnalysis) criterionAnalysis;
                     String s = "";
-                    if(!foreignKeysAnalysis.isMissingForeignKeysEmpty())
-                    {
+                    if (!foreignKeysAnalysis.isMissingForeignKeysEmpty()) {
 
-                        s += messageSource.getMessage("criterium.missingForeignKeys", null, Locale.of(submission.language()))+": " + String.join(", ", foreignKeysAnalysis.getMissingForeignKeys().stream()
+                        s += messageSource.getMessage("criterium.missingForeignKeys", null, Locale.of(submission.language())) + ": " + String.join(", ", foreignKeysAnalysis.getMissingForeignKeys().stream()
                             .map(ErrorTupel::getError)
                             .collect(Collectors.toList()));
                     }
-                    if(!foreignKeysAnalysis.isSurplusForeignKeysEmpty())
-                    {
-                        s += "<br> "+messageSource.getMessage("criterium.surplusForeignKeys", null, Locale.of(submission.language()))+": " + String.join(", ", foreignKeysAnalysis.getSurplusForeignKeys().stream()
+                    if (!foreignKeysAnalysis.isSurplusForeignKeysEmpty()) {
+                        s += "<br> " + messageSource.getMessage("criterium.surplusForeignKeys", null, Locale.of(submission.language())) + ": " + String.join(", ", foreignKeysAnalysis.getSurplusForeignKeys().stream()
                             .map(ErrorTupel::getError)
                             .collect(Collectors.toList()));
                     }
-                    if(!foreignKeysAnalysis.isWrongUpdateForeignKeysEmpty())
-                    {
-                        s += "<br> "+messageSource.getMessage("criterium.wrongUpdateForeignKeys", null, Locale.of(submission.language()))+": " + String.join(", ", foreignKeysAnalysis.getWrongUpdateForeignKeys().stream()
+                    if (!foreignKeysAnalysis.isWrongUpdateForeignKeysEmpty()) {
+                        s += "<br> " + messageSource.getMessage("criterium.wrongUpdateForeignKeys", null, Locale.of(submission.language())) + ": " + String.join(", ", foreignKeysAnalysis.getWrongUpdateForeignKeys().stream()
                             .map(ErrorTupel::getError)
                             .collect(Collectors.toList()));
                     }
-                    if(!foreignKeysAnalysis.isWrongDeleteForeignKeysEmpty())
-                    {
-                        s += "<br> "+messageSource.getMessage("criterium.wrongDeleteForeignKeys", null, Locale.of(submission.language()))+": " + String.join(", ", foreignKeysAnalysis.getWrongDeleteForeignKeys().stream()
+                    if (!foreignKeysAnalysis.isWrongDeleteForeignKeysEmpty()) {
+                        s += "<br> " + messageSource.getMessage("criterium.wrongDeleteForeignKeys", null, Locale.of(submission.language())) + ": " + String.join(", ", foreignKeysAnalysis.getWrongDeleteForeignKeys().stream()
                             .map(ErrorTupel::getError)
                             .collect(Collectors.toList()));
                     }
@@ -359,20 +363,17 @@ public class EvaluationService {
                     assert criterionAnalysis instanceof ConstraintsAnalysis;
                     ConstraintsAnalysis constraintsAnalysis = (ConstraintsAnalysis) criterionAnalysis;
                     String s = "";
-                    if(!constraintsAnalysis.isMissingConstraintsEmpty())
-                    {
-                        s += messageSource.getMessage("criterium.missingConstraints", null, Locale.of(submission.language()))+": " + String.join(", ", constraintsAnalysis.getMissingConstraints().stream()
+                    if (!constraintsAnalysis.isMissingConstraintsEmpty()) {
+                        s += messageSource.getMessage("criterium.missingConstraints", null, Locale.of(submission.language())) + ": " + String.join(", ", constraintsAnalysis.getMissingConstraints().stream()
                             .map(ErrorTupel::getError)
                             .collect(Collectors.toList()));
                     }
-                    if(!constraintsAnalysis.isSurplusConstraintsEmpty())
-                    {
-                        s += "<br> "+messageSource.getMessage("criterium.surplusConstraints", null, Locale.of(submission.language()))+": " + String.join(", ", constraintsAnalysis.getSurplusConstraints().stream()
+                    if (!constraintsAnalysis.isSurplusConstraintsEmpty()) {
+                        s += "<br> " + messageSource.getMessage("criterium.surplusConstraints", null, Locale.of(submission.language())) + ": " + String.join(", ", constraintsAnalysis.getSurplusConstraints().stream()
                             .map(ErrorTupel::getError)
                             .collect(Collectors.toList()));
                     }
-                    if(!constraintsAnalysis.isDmlStatementsWithMistakesEmpty())
-                    {
+                    if (!constraintsAnalysis.isDmlStatementsWithMistakesEmpty()) {
                         s += "<br> Wrong DML Statements: " + String.join(", ", constraintsAnalysis.getDmlStatementsWithMistakes());
                     }
 

@@ -9,6 +9,7 @@ import java.io.Serializable;
 import java.sql.*;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * The type Ddl analyzer.
@@ -111,12 +112,15 @@ public class DDLAnalyzer {
         exerciseSchema = exerciseConn.getSchema();
         userSchema = userConn.getSchema();
 
+
+
         // Execute query
         // Check correct syntax
         if (config.isCriterionToAnalyze(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
             criterionAnalysis = this.analyzeSyntax(submittedQuery);
             analysis.put(DDLEvaluationCriterion.CORRECT_SYNTAX, criterionAnalysis);
             if (criterionAnalysis.getAnalysisException() != null && !criterionAnalysis.isCriterionSatisfied()) {
+
                 return analysis;
             }
         }
@@ -206,10 +210,10 @@ public class DDLAnalyzer {
             // Call executeUpdate to prevent "Query does not return results" exception
             stmt.executeUpdate(submittedQuery);
         } catch (SQLException ex) {
-            syntaxAnalysis.setFoundError(true);
-            syntaxAnalysis.setCriterionIsSatisfied(false);
-            syntaxAnalysis.setErrorDescription(ex.toString());
-            syntaxAnalysis.setAnalysisException(new AnalysisException(ex.toString()));
+                syntaxAnalysis.setFoundError(true);
+                syntaxAnalysis.setCriterionIsSatisfied(false);
+                syntaxAnalysis.setErrorDescription(ex.toString());
+                syntaxAnalysis.setAnalysisException(new AnalysisException(ex.toString()));
             return syntaxAnalysis;
         }
 
@@ -711,6 +715,8 @@ public class DDLAnalyzer {
                         systemAffects = systemStmt.executeUpdate(stmt);
                     } catch (SQLException e) {
                         systemAffects = -1;
+                        //beginn new transaction
+                        exerciseConn.rollback();
                     }
 
                     try {
@@ -718,6 +724,8 @@ public class DDLAnalyzer {
                         userAffects = userStmt.executeUpdate(stmt);
                     } catch (SQLException e) {
                         userAffects = -1;
+                        //beginn new transaction
+                        userConn.rollback();
                     }
 
                     // Check if the row count for the affected rows is the same

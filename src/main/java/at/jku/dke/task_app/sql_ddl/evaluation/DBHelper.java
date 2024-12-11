@@ -7,8 +7,7 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Connection;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -167,6 +166,8 @@ public class DBHelper {
             userConfig.setMaxLifetime(maxLifetime);
             userConfig.setMaximumPoolSize(maxPoolSize);
             userConfig.setAutoCommit(false);
+            userConfig.setConnectionTestQuery("SELECT 1");
+            userConfig.addDataSourceProperty("testOnBorrow", "true");
             userConfig.addDataSourceProperty("cachePrepStmts", "true");
             userConfig.addDataSourceProperty("prepStmtCacheSize", "250");
             userConfig.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
@@ -197,7 +198,7 @@ public class DBHelper {
                 return;
 
             //todo Check why this does not work or current solution is ok
-            /*String query = "select 'drop table if exists "+ schemaName + ".' || tablename || ' cascade;' \n" +
+            String query = "select 'drop table if exists "+ schemaName + ".' || tablename || ' cascade;' \n" +
                     "  from pg_tables\n" +
                     " where schemaname = '" + schemaName + "';";
             PreparedStatement dropTables = userConn.prepareStatement(query);
@@ -207,7 +208,7 @@ public class DBHelper {
                 logger.info(rs.getString(1));
                 Statement ps = userConn.createStatement();
                 logger.info("" + ps.executeUpdate(rs.getString(1)));
-            }*/
+            }
 
             // Reset database schema
             userConn.rollback();
