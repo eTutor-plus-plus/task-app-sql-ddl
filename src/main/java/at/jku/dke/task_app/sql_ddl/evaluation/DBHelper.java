@@ -7,9 +7,9 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Connection;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -167,6 +167,8 @@ public class DBHelper {
             userConfig.setMaxLifetime(maxLifetime);
             userConfig.setMaximumPoolSize(maxPoolSize);
             userConfig.setAutoCommit(false);
+            userConfig.setConnectionTestQuery("SELECT 1");
+            userConfig.addDataSourceProperty("testOnBorrow", "true");
             userConfig.addDataSourceProperty("cachePrepStmts", "true");
             userConfig.addDataSourceProperty("prepStmtCacheSize", "250");
             userConfig.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
@@ -196,21 +198,20 @@ public class DBHelper {
             if (userConn == null || userConn.isClosed())
                 return;
 
-            //todo Check why this does not work or current solution is ok
-            /*String query = "select 'drop table if exists "+ schemaName + ".' || tablename || ' cascade;' \n" +
-                    "  from pg_tables\n" +
-                    " where schemaname = '" + schemaName + "';";
-            PreparedStatement dropTables = userConn.prepareStatement(query);
-            ResultSet rs = dropTables.executeQuery();
+            //drop schema with admin connection
+            Connection adminConn = getSystemConnection();
+            Statement stmt = adminConn.createStatement();
+            stmt.executeUpdate("DROP SCHEMA IF EXISTS " + schemaName + " CASCADE");
+            adminConn.commit();
+            //restore schema AUTORIZATION USER
+            stmt.execute("CREATE SCHEMA IF NOT EXISTS AUTHORIZATION " + user);
+            adminConn.commit();
+            //close admin connection
+            stmt.close();
 
-            while (rs.next()) {
-                logger.info(rs.getString(1));
-                Statement ps = userConn.createStatement();
-                logger.info("" + ps.executeUpdate(rs.getString(1)));
-            }*/
 
             // Reset database schema
-            userConn.rollback();
+            //userConn.rollback();
             userConn.close();
 
             // Close datasource
@@ -220,6 +221,31 @@ public class DBHelper {
         } catch (SQLException ex) {
             logger.error("Error while resetting user connection.", ex);
         }
+    }
+
+    /**
+     * Clear exercise schema tables.
+     *
+     * @param schemaName The schema name.
+     */
+    public static void clearExerciseSchemaTables(String schemaName){
+
+        try {
+            Connection conn = getSystemConnection();
+            Statement stmt = conn.createStatement();
+            Statement stmt2 = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = '" + schemaName + "'");
+            while (rs.next()) {
+                String tableName = rs.getString("table_name");
+                stmt2.executeUpdate("TRUNCATE TABLE " + schemaName + "." + tableName + " CASCADE");
+            }
+            conn.commit();
+            stmt.close();
+            stmt2.close();
+        } catch (SQLException ex) {
+            logger.error("Error while clearing exercise schema tables.", ex);
+        }
+
     }
 
     /**
