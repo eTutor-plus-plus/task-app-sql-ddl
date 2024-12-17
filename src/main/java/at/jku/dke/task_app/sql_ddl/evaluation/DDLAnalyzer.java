@@ -60,6 +60,8 @@ public class DDLAnalyzer {
         DDLCriterionAnalysis criterionAnalysis;
         HashMap<DDLEvaluationCriterion, DDLCriterionAnalysis> analysis = new HashMap<>();
 
+
+
         // Check if submission is null
         if (submission == null) {
             msg = "";
@@ -85,6 +87,17 @@ public class DDLAnalyzer {
             msg = msg.concat("Submission is not utilizable. ");
             msg = msg.concat(INTERNAL_ERROR);
             msg = msg.concat(CONTACT_ADMIN);
+
+            this.logger.error(msg);
+            analysis.put(DDLEvaluationCriterion.ERROR, new ErrorAnalysis(msg, false));
+            return analysis;
+        }
+
+        //check if submission contains a Assertion Statement
+        if(submittedQuery.contains("assertion")||submittedQuery.contains("assert")){
+            msg = "";
+            msg = msg.concat("Analysis stopped with errors. ");
+            msg = msg.concat("Submission contains an assertion statement.");
 
             this.logger.error(msg);
             analysis.put(DDLEvaluationCriterion.ERROR, new ErrorAnalysis(msg, false));
@@ -209,6 +222,7 @@ public class DDLAnalyzer {
 
             // Call executeUpdate to prevent "Query does not return results" exception
             stmt.executeUpdate(submittedQuery);
+            userConn.commit();
         } catch (SQLException ex) {
                 syntaxAnalysis.setFoundError(true);
                 syntaxAnalysis.setCriterionIsSatisfied(false);
@@ -706,17 +720,21 @@ public class DDLAnalyzer {
 
                 int systemAffects;
                 int userAffects;
+                userConn.commit();
+                exerciseConn.setAutoCommit(true);
+                userConn.setAutoCommit(true);
 
                 // Analyze check constraints
                 for (String stmt : config.getDmlStatements()) {
                     // Execute the DML statements
+
                     try {
                         systemStmt = exerciseConn.createStatement();
                         systemAffects = systemStmt.executeUpdate(stmt);
                     } catch (SQLException e) {
                         systemAffects = -1;
                         //beginn new transaction
-                        exerciseConn.rollback();
+                        //exerciseConn.rollback();
                     }
 
                     try {
@@ -724,8 +742,8 @@ public class DDLAnalyzer {
                         userAffects = userStmt.executeUpdate(stmt);
                     } catch (SQLException e) {
                         userAffects = -1;
-                        //beginn new transaction
-                        userConn.rollback();
+                        //userConn.rollback();
+
                     }
 
                     // Check if the row count for the affected rows is the same
@@ -743,7 +761,12 @@ public class DDLAnalyzer {
             this.logger.error(msg, ex);
             constraintsAnalysis.setAnalysisException(new AnalysisException(msg, ex));
         }
-
+        try {
+            userConn.setAutoCommit(false);
+            exerciseConn.setAutoCommit(false);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
         constraintsAnalysis.setCriterionIsSatisfied(satisfied && constraintsAnalysis.isDmlStatementsWithMistakesEmpty() && constraintsAnalysis.isInsertStatementsChecked());
         this.logger.info("Finished constraint analysis. Criterion satisfied: " + constraintsAnalysis.isCriterionSatisfied());
         return constraintsAnalysis;

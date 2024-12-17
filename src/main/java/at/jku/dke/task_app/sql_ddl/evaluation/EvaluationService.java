@@ -56,7 +56,7 @@ public class EvaluationService {
      * @return The evaluation result.
      */
     @Transactional
-    public GradingDto evaluate(SubmitSubmissionDto<SqlDdlSubmissionDto> submission) {
+    public GradingDto evaluate(SubmitSubmissionDto<SqlDdlSubmissionDto> submission)  {
         // find task
         var task = this.taskRepository.findById(submission.taskId()).orElseThrow(() -> new EntityNotFoundException("Task " + submission.taskId() + " does not exist."));
         GradingDto gradingDto = new GradingDto(task.getMaxPoints(), BigDecimal.ZERO, null, null);
@@ -181,12 +181,13 @@ public class EvaluationService {
         try {
             analysis = analyzer.analyze(submission.submission().input(), analyzerConfig);
         } catch (SQLException e) {
-
+            DBHelper.clearExerciseSchemaTables(solutionSchema);
             DBHelper.resetUserConnection(userConn, user, userSchema);
             admin.releaseUser(user);
             DBHelper.closeSystemConnectionWithSchema();
             throw new RuntimeException(e);
         }
+        DBHelper.clearExerciseSchemaTables(solutionSchema);
         DBHelper.resetUserConnection(userConn, user, userSchema);
         admin.releaseUser(user);
         DBHelper.closeSystemConnectionWithSchema();
@@ -214,6 +215,13 @@ public class EvaluationService {
         for (Map.Entry<DDLEvaluationCriterion, DDLCriterionAnalysis> entry : analysis.entrySet()) {
             DDLEvaluationCriterion criterion = entry.getKey();
             DDLCriterionAnalysis criterionAnalysis = entry.getValue();
+
+            if(criterion.equals(DDLEvaluationCriterion.ERROR))
+            {
+                ErrorAnalysis errorAnalysis = (ErrorAnalysis) criterionAnalysis;
+                criteria.add(new CriterionDto(messageSource.getMessage("criterium.error", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), errorAnalysis.getErrorMessage()));
+                break;
+            }
 
 
             if (submission.mode().equals(SubmissionMode.RUN)) {
