@@ -198,16 +198,32 @@ public class DBHelper {
             if (userConn == null || userConn.isClosed())
                 return;
 
-            //drop schema with admin connection
-            Connection adminConn = getSystemConnection();
-            Statement stmt = adminConn.createStatement();
-            stmt.executeUpdate("DROP SCHEMA IF EXISTS " + schemaName + " CASCADE");
-            adminConn.commit();
-            //restore schema AUTORIZATION USER
-            stmt.execute("CREATE SCHEMA IF NOT EXISTS AUTHORIZATION " + user);
-            adminConn.commit();
-            //close admin connection
+            //drop all tables from schema
+            Connection conn = getSystemConnection();
+            Statement stmt = conn.createStatement();
+            Statement stmt2 = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = '" + schemaName + "'");
+            while (rs.next()) {
+                String tableName = rs.getString("table_name");
+                stmt2.executeUpdate("DROP TABLE IF EXISTS  " + schemaName + "." + tableName + " CASCADE");
+            }
+            conn.commit();
             stmt.close();
+            stmt2.close();
+
+
+//            //drop schema with admin connection
+//            Connection adminConn = getSystemConnection();
+//            Statement stmt = adminConn.createStatement();
+//            stmt.executeUpdate("DROP SCHEMA IF EXISTS " + schemaName + " CASCADE");
+//            adminConn.commit();
+//            //restore schema AUTHORIZATION USER
+//            stmt.execute("CREATE SCHEMA IF NOT EXISTS AUTHORIZATION " + user);
+//            adminConn.commit();
+//            //close admin connection
+//            stmt.close();
+
+
 
 
             // Reset database schema

@@ -80,7 +80,7 @@ public class DDLAnalyzer {
             submittedQuery = (String) submission;
 
             // Remove all commits in submission
-            submittedQuery = submittedQuery.toLowerCase().replace("commit;", "").replace("commit", "");
+            submittedQuery = submittedQuery.replace("commit;", "").replace("commit", "").replace("COMMIT;", "").replace("COMMIT", "");
         } else {
             msg = "";
             msg = msg.concat("Analysis stopped with errors. ");
