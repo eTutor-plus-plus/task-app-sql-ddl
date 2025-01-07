@@ -107,6 +107,7 @@ public class DBUserAdmin {
             if (firstTry) {
                 firstTry = false;
             } else {
+
                 msg = "Already waiting more than 30 seconds for user to become ";
                 msg += "available for creating JDBC connection ";
                 msg += "(Total amount of busy users: " + busyUsers.size() + ").";
