@@ -174,6 +174,8 @@ public class DBHelper {
             userConfig.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
             userConfig.addDataSourceProperty("socketTimeout", "30");
 
+            //search for broken connections in the pool
+
             // Get connection
             HikariDataSource userDatasource = new HikariDataSource(userConfig);
             userDatasources.put(user, userDatasource);
@@ -195,7 +197,7 @@ public class DBHelper {
      */
     public static void resetUserConnection(Connection userConn, String user, String schemaName) {
         try {
-            if (userConn == null || userConn.isClosed())
+            if (userConn == null)
                 return;
 
             //drop all tables from schema
@@ -231,9 +233,14 @@ public class DBHelper {
             userConn.close();
 
             // Close datasource
+
             if (userDatasources.get(user) != null) {
                 userDatasources.get(user).close();
+                userDatasources.get(user).evictConnection(userConn);
+                userDatasources.get(user).setMaxLifetime(0);
+                userDatasources.remove(user);
             }
+            //remove connection from pool
         } catch (SQLException ex) {
             logger.error("Error while resetting user connection.", ex);
         }
