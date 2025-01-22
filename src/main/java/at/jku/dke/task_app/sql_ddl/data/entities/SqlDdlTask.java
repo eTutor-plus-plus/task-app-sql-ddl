@@ -43,6 +43,9 @@ public class SqlDdlTask extends BaseTask {
     @Column(name = "constraint_points", nullable = false)
     private Integer constraintPoints;
 
+    @Column (name = "wordlist", length = Integer.MAX_VALUE)
+    private String wordlist;
+
     @Column(name = "insert_statements", length = Integer.MAX_VALUE)
     private String insertStatements;
 
@@ -124,6 +127,14 @@ public class SqlDdlTask extends BaseTask {
 
     public void setConstraintPoints(Integer constraintPoints) {
         this.constraintPoints = constraintPoints;
+    }
+
+    public String getWordlist() {
+        return wordlist;
+    }
+
+    public void setWordlist(String wordlist) {
+        this.wordlist = wordlist;
     }
 
 

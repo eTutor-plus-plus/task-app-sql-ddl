@@ -56,7 +56,7 @@ public class EvaluationService {
      * @return The evaluation result.
      */
     @Transactional
-    public GradingDto evaluate(SubmitSubmissionDto<SqlDdlSubmissionDto> submission)  {
+    public GradingDto evaluate(SubmitSubmissionDto<SqlDdlSubmissionDto> submission) {
         // find task
         var task = this.taskRepository.findById(submission.taskId()).orElseThrow(() -> new EntityNotFoundException("Task " + submission.taskId() + " does not exist."));
         GradingDto gradingDto = new GradingDto(task.getMaxPoints(), BigDecimal.ZERO, null, null);
@@ -179,7 +179,7 @@ public class EvaluationService {
         HashMap<DDLEvaluationCriterion, DDLCriterionAnalysis> analysis = null;
         // Execute analysis
         try {
-            analysis = analyzer.analyze(submission.submission().input(), analyzerConfig);
+            analysis = analyzer.analyze(submission.submission().input(), analyzerConfig, task);
         } catch (SQLException e) {
             DBHelper.clearExerciseSchemaTables(solutionSchema);
             DBHelper.resetUserConnection(userConn, user, userSchema);
@@ -202,6 +202,8 @@ public class EvaluationService {
             System.out.println("Criterion Analysis: " + criterionAnalysis.isCriterionSatisfied());
             System.out.println("-----------------------------");
         }
+
+
         //TODO generate gradingDTO from analysis like: buildReport(analysis, submission)
         gradingDto = grade(analysis, task, gradingDto);
         gradingDto = report(analysis, task, gradingDto, submission);
@@ -216,8 +218,7 @@ public class EvaluationService {
             DDLEvaluationCriterion criterion = entry.getKey();
             DDLCriterionAnalysis criterionAnalysis = entry.getValue();
 
-            if(criterion.equals(DDLEvaluationCriterion.ERROR))
-            {
+            if (criterion.equals(DDLEvaluationCriterion.ERROR)) {
                 ErrorAnalysis errorAnalysis = (ErrorAnalysis) criterionAnalysis;
                 criteria.add(new CriterionDto(messageSource.getMessage("criterium.error", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), errorAnalysis.getErrorMessage()));
                 break;
@@ -226,7 +227,12 @@ public class EvaluationService {
 
             if (submission.mode().equals(SubmissionMode.RUN)) {
                 if (criterion.equals(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
-                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), criterionAnalysis.getAnalysisException() == null ? null : criterionAnalysis.getAnalysisException().getMessage()));
+                    assert criterionAnalysis instanceof SyntaxAnalysis;
+                    SyntaxAnalysis syntaxAnalysis = (SyntaxAnalysis) criterionAnalysis;
+                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), syntaxAnalysis.getErrorDescription()));
+
+
+
                     break;
                 }
 
@@ -241,7 +247,9 @@ public class EvaluationService {
             }
             if (submission.feedbackLevel().equals(1)) {
                 if (criterion.equals(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
-                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), criterionAnalysis.getAnalysisException() == null ? null : criterionAnalysis.getAnalysisException().getMessage()));
+                    assert criterionAnalysis instanceof SyntaxAnalysis;
+                    SyntaxAnalysis syntaxAnalysis = (SyntaxAnalysis) criterionAnalysis;
+                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), syntaxAnalysis.getErrorDescription()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_TABLES)) {
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.tables", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), criterionAnalysis.getAnalysisException() == null ? null : criterionAnalysis.getAnalysisException().getMessage()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_COLUMNS)) {
@@ -256,6 +264,7 @@ public class EvaluationService {
             }
             if (submission.feedbackLevel().equals(2)) {
                 if (criterion.equals(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
+                    assert criterionAnalysis instanceof SyntaxAnalysis;
                     SyntaxAnalysis syntaxAnalysis = (SyntaxAnalysis) criterionAnalysis;
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), syntaxAnalysis.getErrorDescription()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_TABLES)) {
@@ -272,7 +281,7 @@ public class EvaluationService {
                     ForeignKeysAnalysis foreignKeysAnalysis = (ForeignKeysAnalysis) criterionAnalysis;
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.foreignKeys", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), foreignKeysAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getMissingForeignKeys().size()
                         + " <br> " + messageSource.getMessage("criterium.surplusForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getSurplusForeignKeys().size() + " <br>" + messageSource.getMessage("criterium.wrongUpdateForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getWrongUpdateForeignKeys().size()
-                        + " <br> " + messageSource.getMessage("criterium.wrongDeleteForeignKeys", null, Locale.of(submission.language()))+ ": " + foreignKeysAnalysis.getWrongDeleteForeignKeys().size()));
+                        + " <br> " + messageSource.getMessage("criterium.wrongDeleteForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getWrongDeleteForeignKeys().size()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_CONSTRAINTS)) {
                     ConstraintsAnalysis constraintsAnalysis = (ConstraintsAnalysis) criterionAnalysis;
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.constraints", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), constraintsAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingConstraints", null, Locale.of(submission.language())) + ": " + constraintsAnalysis.getMissingConstraints().size()
