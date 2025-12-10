@@ -311,6 +311,7 @@ public class DDLAnalyzer {
 
                     // Compare table names
                     if (userTable.equalsIgnoreCase(systemTable)) {
+                        tablesAnalysis.addCorrectTable(userTable);
                         exists = true;
                         break;
                     }
@@ -325,7 +326,8 @@ public class DDLAnalyzer {
                 userRs.beforeFirst();
                 exists = false;
             }
-            tablesAnalysis.setTotalNumOfTables(numberOfTables);
+            tablesAnalysis.setTotalNumOfTablesInSolution(numberOfTables);
+            tablesAnalysis.setTotalNumOfTablesInSubmission(userRs.getFetchSize());
             // Reset variable
             systemRS.beforeFirst();
 
