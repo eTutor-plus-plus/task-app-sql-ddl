@@ -241,45 +241,45 @@ public class DDLAnalyzer {
 
         syntaxAnalysis.setCriterionIsSatisfied(true);
 
+        if (wordlist != null && !wordlist.isEmpty()) {
+            String wrongWords = "";
+            String[] submissionWords = submittedQuery.split("[^a-zA-Z0-9_]");
 
-        String wrongWords = "";
-        String[] submissionWords = submittedQuery.split("[^a-zA-Z0-9_]");
 
+            String[] solutionWordlist = wordlist.split(";");
 
-        String[] solutionWordlist = wordlist.split(";");
+            solutionWordlist = Arrays.stream(solutionWordlist).map(String::toLowerCase).toArray(String[]::new);
 
-        solutionWordlist = Arrays.stream(solutionWordlist).map(String::toLowerCase).toArray(String[]::new);
+            //put to lower case
+            submissionWords = Arrays.stream(submissionWords).map(String::toLowerCase).toArray(String[]::new);
 
-        //put to lower case
-        submissionWords = Arrays.stream(submissionWords).map(String::toLowerCase).toArray(String[]::new);
+            //filter out duplicates
+            submissionWords = Arrays.stream(submissionWords).distinct().toArray(String[]::new);
 
-        //filter out duplicates
-        submissionWords = Arrays.stream(submissionWords).distinct().toArray(String[]::new);
+            //filter numbers
+            submissionWords = Arrays.stream(submissionWords).filter(s -> !s.matches(".*\\d+.*")).toArray(String[]::new);
 
-        //filter numbers
-        submissionWords = Arrays.stream(submissionWords).filter(s -> !s.matches(".*\\d+.*")).toArray(String[]::new);
+            //filter empty string in both wordlists
+            submissionWords = Arrays.stream(submissionWords).filter(s -> !s.isEmpty()).toArray(String[]::new);
+            solutionWordlist = Arrays.stream(solutionWordlist).filter(s -> !s.isEmpty()).toArray(String[]::new);
 
-        //filter empty string in both wordlists
-        submissionWords = Arrays.stream(submissionWords).filter(s -> !s.isEmpty()).toArray(String[]::new);
-        solutionWordlist = Arrays.stream(solutionWordlist).filter(s -> !s.isEmpty()).toArray(String[]::new);
-
-        for (String word : submissionWords) {
-            if (!Arrays.stream(solutionWordlist).anyMatch(word::equals)) {
-                //check if word in sqlKeywords
-                if (!Arrays.stream(sqlKeywords).anyMatch(word::equals)) {
-                    if (wrongWords.length() > 0) {
-                        wrongWords = wrongWords.concat(", ");
+            for (String word : submissionWords) {
+                if (!Arrays.stream(solutionWordlist).anyMatch(word::equals)) {
+                    //check if word in sqlKeywords
+                    if (!Arrays.stream(sqlKeywords).anyMatch(word::equals)) {
+                        if (wrongWords.length() > 0) {
+                            wrongWords = wrongWords.concat(", ");
+                        }
+                        wrongWords = wrongWords.concat(word);
                     }
-                    wrongWords = wrongWords.concat(word);
                 }
             }
-        }
 
-        if(wrongWords.length() > 0) {
-            syntaxAnalysis.setCriterionIsSatisfied(false);
-            syntaxAnalysis.setErrorDescription(wrongWords);
+            if (wrongWords.length() > 0) {
+                syntaxAnalysis.setCriterionIsSatisfied(false);
+                syntaxAnalysis.setErrorDescription("Wrong words: "+wrongWords);
+            }
         }
-
 
 
         this.logger.info("Finished syntax analysis. Criterion satisfied: " + syntaxAnalysis.isCriterionSatisfied());
@@ -301,10 +301,10 @@ public class DDLAnalyzer {
         try {
             ResultSet userRs = userMetadata.getTables(null, userSchema, null, new String[]{"TABLE"});
             ResultSet systemRS = exerciseMetadata.getTables(null, exerciseSchema, null, new String[]{"TABLE"});
-            int numberOfTables = 0;
+            int numberOfTablesSolution = 0;
             // Search for missing tables
             while (systemRS.next()) {
-                numberOfTables++;
+                numberOfTablesSolution++;
                 String systemTable = systemRS.getString("TABLE_NAME");
                 while (userRs.next()) {
                     String userTable = userRs.getString("TABLE_NAME");
@@ -326,13 +326,17 @@ public class DDLAnalyzer {
                 userRs.beforeFirst();
                 exists = false;
             }
-            tablesAnalysis.setTotalNumOfTablesInSolution(numberOfTables);
-            tablesAnalysis.setTotalNumOfTablesInSubmission(userRs.getFetchSize());
+
+            //get total number of tables in the submission
+
+
+            tablesAnalysis.setTotalNumOfTablesInSolution(numberOfTablesSolution);
             // Reset variable
             systemRS.beforeFirst();
-
+            int numberOfTablesSubmission = 0;
             // Search for surplus tables
             while (userRs.next()) {
+                numberOfTablesSubmission++;
                 String userTable = userRs.getString("TABLE_NAME");
                 while (systemRS.next()) {
                     String systemTable = systemRS.getString("TABLE_NAME");
@@ -353,6 +357,10 @@ public class DDLAnalyzer {
                 systemRS.beforeFirst();
                 exists = false;
             }
+
+
+            tablesAnalysis.setTotalNumOfTablesInSubmission(numberOfTablesSubmission);
+
         } catch (SQLException ex) {
             msg = "";
             msg = msg.concat("Error encountered while analyzing tables. ");
