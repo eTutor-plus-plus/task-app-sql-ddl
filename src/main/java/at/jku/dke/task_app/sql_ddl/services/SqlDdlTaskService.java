@@ -19,7 +19,7 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 
 /**
- * This class provides methods for managing {@link BinarySearchTask}s.
+ * This class provides methods for managing {@link SqlDdlTask}s.
  */
 @Service
 public class SqlDdlTaskService extends BaseTaskService<SqlDdlTask, ModifySqlDdlTaskDto> {
@@ -31,6 +31,7 @@ public class SqlDdlTaskService extends BaseTaskService<SqlDdlTask, ModifySqlDdlT
     private final String pwd;
     private final String url;
     private final String schemaName = "schema_name_";
+    private final SqlDdlTaskRepository sqlDdlTaskRepository;
 
     /**
      * Creates a new instance of class {@link SqlDdlTaskService}.
@@ -38,13 +39,14 @@ public class SqlDdlTaskService extends BaseTaskService<SqlDdlTask, ModifySqlDdlT
      * @param repository    The task repository.
      * @param messageSource The message source.
      */
-    public SqlDdlTaskService(@Value("${spring.datasource.username}") String username, @Value("${spring.datasource.password}") String pwd, @Value("${spring.datasource.url}") String url, SqlDdlTaskRepository repository, MessageSource messageSource) {
+    public SqlDdlTaskService(@Value("${spring.datasource.username}") String username, @Value("${spring.datasource.password}") String pwd, @Value("${spring.datasource.url}") String url, SqlDdlTaskRepository repository, MessageSource messageSource, SqlDdlTaskRepository sqlDdlTaskRepository) {
         super(repository);
         this.messageSource = messageSource;
 
         this.username = username;
         this.pwd = pwd;
         this.url = url;
+        this.sqlDdlTaskRepository = sqlDdlTaskRepository;
     }
 
     @Override
@@ -81,6 +83,27 @@ public class SqlDdlTaskService extends BaseTaskService<SqlDdlTask, ModifySqlDdlT
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error creating schema: " + e.getMessage());
         }
 
+        String wordlist = generateWordlist(task.getSolution());
+        task.setWordlist(wordlist);
+        sqlDdlTaskRepository.save(task);
+    }
+
+    private String generateWordlist(String solution) {
+        //get all Strings without special characters seperated by a semicolon
+        String[] words = solution.split("[^a-zA-Z0-9_]");
+        //filter duplicates
+        String[] uniqueWords = java.util.stream.Stream.of(words).distinct().toArray(String[]::new);
+        StringBuilder wordlist = new StringBuilder();
+        for (String word : words) {
+            if (!word.isEmpty()) {
+
+                //filter numbers
+                if (!word.matches("[0-9]+")) {
+                    wordlist.append(word.toLowerCase()).append(";");
+                }
+            }
+        }
+        return wordlist.toString();
     }
 
     @Override
@@ -129,6 +152,11 @@ public class SqlDdlTaskService extends BaseTaskService<SqlDdlTask, ModifySqlDdlT
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error updating schema: " + e.getMessage());
         }
+
+
+        String wordlist = generateWordlist(task.getSolution());
+        task.setWordlist(wordlist);
+        sqlDdlTaskRepository.save(task);
     }
 
     @Override

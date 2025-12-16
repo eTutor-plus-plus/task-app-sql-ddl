@@ -16,6 +16,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.print.DocFlavor;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -33,7 +34,7 @@ public class EvaluationService {
 
     private final SqlDdlTaskRepository taskRepository;
     private final MessageSource messageSource;
-    private static final String LINE_SEP = System.getProperty("line.separator", "\n");
+    private static final String LINE_SEP = System.getProperty("line.separator", "<br>");
 
     /**
      * Creates a new instance of class {@link EvaluationService}.
@@ -56,7 +57,7 @@ public class EvaluationService {
      * @return The evaluation result.
      */
     @Transactional
-    public GradingDto evaluate(SubmitSubmissionDto<SqlDdlSubmissionDto> submission)  {
+    public GradingDto evaluate(SubmitSubmissionDto<SqlDdlSubmissionDto> submission) {
         // find task
         var task = this.taskRepository.findById(submission.taskId()).orElseThrow(() -> new EntityNotFoundException("Task " + submission.taskId() + " does not exist."));
         GradingDto gradingDto = new GradingDto(task.getMaxPoints(), BigDecimal.ZERO, null, null);
@@ -138,7 +139,7 @@ public class EvaluationService {
 
         // Set the dml statements for the check constraints
         if (tempDMLStatements != null) {
-            dmlStatements = List.of(tempDMLStatements.replace("\n", "").split(";"));
+            dmlStatements = List.of(tempDMLStatements.replace("<br>", "").split(";"));
             analyzerConfig.setDmlStatements(dmlStatements);
         }
 
@@ -179,7 +180,7 @@ public class EvaluationService {
         HashMap<DDLEvaluationCriterion, DDLCriterionAnalysis> analysis = null;
         // Execute analysis
         try {
-            analysis = analyzer.analyze(submission.submission().input(), analyzerConfig);
+            analysis = analyzer.analyze(submission.submission().input(), analyzerConfig, task);
         } catch (SQLException e) {
             DBHelper.clearExerciseSchemaTables(solutionSchema);
             DBHelper.resetUserConnection(userConn, user, userSchema);
@@ -202,8 +203,12 @@ public class EvaluationService {
             System.out.println("Criterion Analysis: " + criterionAnalysis.isCriterionSatisfied());
             System.out.println("-----------------------------");
         }
+
+
         //TODO generate gradingDTO from analysis like: buildReport(analysis, submission)
-        gradingDto = grade(analysis, task, gradingDto);
+        if(!submission.mode().equals(SubmissionMode.RUN)){
+            gradingDto = grade(analysis, task, gradingDto);
+        }
         gradingDto = report(analysis, task, gradingDto, submission);
 
         return gradingDto;
@@ -212,12 +217,151 @@ public class EvaluationService {
 
     private GradingDto report(HashMap<DDLEvaluationCriterion, DDLCriterionAnalysis> analysis, SqlDdlTask task, GradingDto gradingDto, SubmitSubmissionDto<SqlDdlSubmissionDto> submission) {
         List<CriterionDto> criteria = new ArrayList<>();
+
+    if(!submission.mode().equals(SubmissionMode.RUN)&& submission.feedbackLevel() > 2){
+        //Grading Information Builder
+        CriterionDto criterionDtoGradingInfo;
+        TablesAnalysis tablesAnalysisGradingInfo = (TablesAnalysis) analysis.get(DDLEvaluationCriterion.CORRECT_TABLES);
+        StringBuilder sb = new StringBuilder();
+        for (String table : tablesAnalysisGradingInfo.getCorrectTables()) {
+            StringBuilder sbDetails = new StringBuilder();
+            int tablepoints = task.getTablePoints();
+            //Build String for each Table with their wrong columns and Keys and their overall Points
+
+            ColumnsAnalysis columnsAnalysis = (ColumnsAnalysis) analysis.get(DDLEvaluationCriterion.CORRECT_COLUMNS);
+            Optional<ColumnsOfTable> tableOpt = columnsAnalysis.getColumnsOfTables().stream().filter(t -> t.getTableName().equals(table)).findFirst();
+            if (tableOpt.isPresent()) {
+                ColumnsOfTable columnsOfTable = tableOpt.get();
+                if (!columnsOfTable.isMissingColumnsEmpty()) {
+                    sbDetails.append(" Missing Columns: ").append("<br>");
+                    for (ErrorTupel error : columnsOfTable.getMissingColumns()) {
+                        sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getColumnPoints()).append("Points").append("<br>");
+                        tablepoints -= task.getColumnPoints();
+                    }
+                }
+                if (!columnsOfTable.isSurplusColumnsEmpty()) {
+                    sbDetails.append(" Surplus Columns: ").append("<br>");
+                    for (ErrorTupel error : columnsOfTable.getSurplusColumns()) {
+                        sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getColumnPoints()).append("Points").append("<br>");
+                        tablepoints -= task.getColumnPoints();
+                    }
+                }
+                if (!columnsOfTable.isWrongDatatypeColumnsEmpty()) {
+                    sbDetails.append(" Wrong Datatype Columns: ").append("<br>");
+                    for (ErrorTupel error : columnsOfTable.getWrongDatatypeColumns()) {
+                        sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getColumnPoints()).append("Points").append("<br>");
+                        tablepoints -= task.getColumnPoints();
+                    }
+                }
+                if (!columnsOfTable.isWrongDefaultColumnsEmpty()) {
+                    sbDetails.append(" Wrong Default Columns: ").append("<br>");
+                    for (ErrorTupel error : columnsOfTable.getWrongDefaultColumns()) {
+                        sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getColumnPoints()).append("Points").append("<br>");
+                        tablepoints -= task.getColumnPoints();
+                    }
+                }
+                if (!columnsOfTable.isWrongNullColumnsEmpty()) {
+                    sbDetails.append(" Wrong Null Columns: ").append("<br>");
+                    for (ErrorTupel error : columnsOfTable.getWrongNullColumns()) {
+                        sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getColumnPoints()).append("Points").append("<br>");
+                        tablepoints -= task.getColumnPoints();
+                    }
+                }
+            }
+            PrimaryKeysAnalysis primaryKeysAnalysis = (PrimaryKeysAnalysis) analysis.get(DDLEvaluationCriterion.CORRECT_PRIMARY_KEYS);
+            //missing PrimaryKeys
+            List<ErrorTupel> primaryKeysOfTable = primaryKeysAnalysis.getMissingPrimaryKeys()
+                .stream()
+                .filter(pk -> pk.getSource().equals(table))
+                .collect(Collectors.toList());
+            if (!primaryKeysOfTable.isEmpty()) {
+                sbDetails.append(" Missing Primary Keys: ").append("<br>");
+                for (ErrorTupel error : primaryKeysOfTable) {
+                    sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getPrimaryKeyPoints()).append("Points").append("<br>");
+                    tablepoints -= task.getPrimaryKeyPoints();
+                }
+            }
+            //surplus PrimaryKeys
+            primaryKeysOfTable = primaryKeysAnalysis.getSurplusPrimaryKeys()
+                .stream()
+                .filter(pk -> pk.getSource().equals(table))
+                .collect(Collectors.toList());
+            if (!primaryKeysOfTable.isEmpty()) {
+                sbDetails.append(" Surplus Primary Keys: ").append("<br>");
+                for (ErrorTupel error : primaryKeysOfTable) {
+                    sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getPrimaryKeyPoints()).append("Points").append("<br>");
+                    tablepoints -= task.getPrimaryKeyPoints();
+                }
+            }
+            //ForeignKeys
+            ForeignKeysAnalysis foreignKeysAnalysis = (ForeignKeysAnalysis) analysis.get(DDLEvaluationCriterion.CORRECT_FOREIGN_KEYS);
+            //missing ForeignKeys
+            List<ErrorTupel> foreignKeysOfTable = foreignKeysAnalysis.getMissingForeignKeys()
+                .stream()
+                .filter(fk -> fk.getSource().equals(table))
+                .collect(Collectors.toList());
+            if (!foreignKeysOfTable.isEmpty()) {
+                sbDetails.append(" Missing Foreign Keys: ").append("<br>");
+                for (ErrorTupel error : foreignKeysOfTable) {
+                    sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getForeignKeyPoints()).append("Points").append("<br>");
+                    tablepoints -= task.getForeignKeyPoints();
+                }
+            }
+            //surplus ForeignKeys
+            foreignKeysOfTable = foreignKeysAnalysis.getSurplusForeignKeys()
+                .stream()
+                .filter(fk -> fk.getSource().equals(table))
+                .collect(Collectors.toList());
+            if (!foreignKeysOfTable.isEmpty()) {
+                sbDetails.append(" Surplus Foreign Keys: ").append("<br>");
+                for (ErrorTupel error : foreignKeysOfTable) {
+                    sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getForeignKeyPoints()).append("Points").append("<br>");
+                    tablepoints -= task.getForeignKeyPoints();
+                }
+            }
+            //wrong Update ForeignKeys
+            foreignKeysOfTable = foreignKeysAnalysis.getWrongUpdateForeignKeys()
+                .stream()
+                .filter(fk -> fk.getSource().equals(table))
+                .collect(Collectors.toList());
+            if (!foreignKeysOfTable.isEmpty()) {
+                sbDetails.append(" Wrong Update Foreign Keys: ").append("<br>");
+                for (ErrorTupel error : foreignKeysOfTable) {
+                    sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getForeignKeyPoints()).append("Points").append("<br>");
+                    tablepoints -= task.getForeignKeyPoints();
+                }
+            }
+
+            //wrong Delete ForeignKeys
+
+            foreignKeysOfTable = foreignKeysAnalysis.getWrongDeleteForeignKeys()
+                .stream()
+                .filter(fk -> fk.getSource().equals(table))
+                .collect(Collectors.toList());
+            if (!foreignKeysOfTable.isEmpty()) {
+                sbDetails.append(" Wrong \"Delete\" Foreign Keys: ").append("<br>");
+                for (ErrorTupel error : foreignKeysOfTable) {
+                    sbDetails.append("  - ").append(error.getError()).append(" -").append(task.getForeignKeyPoints()).append("Points").append("<br>");
+                    tablepoints -= task.getForeignKeyPoints();
+                }
+            }
+            //sb.append("Table: ").append(table).append(tablepoints).append(" Points of ").append(task.getTablePoints()).append("Points").append("<br>");
+            sb.append(" Total Points for Table \"").append(table).append("\": ").append(Math.max(tablepoints, 0)).append(" out of ").append(task.getTablePoints()).append(" Points <br>");
+            sb.append(sbDetails);
+            sb.append("<br>");
+        }
+        criterionDtoGradingInfo = new CriterionDto("Grading Information", null, true, sb.toString());
+        criteria.add(criterionDtoGradingInfo);
+    }
+
+
+
+        //old Feedback structure
         for (Map.Entry<DDLEvaluationCriterion, DDLCriterionAnalysis> entry : analysis.entrySet()) {
             DDLEvaluationCriterion criterion = entry.getKey();
             DDLCriterionAnalysis criterionAnalysis = entry.getValue();
 
-            if(criterion.equals(DDLEvaluationCriterion.ERROR))
-            {
+            if (criterion.equals(DDLEvaluationCriterion.ERROR)) {
                 ErrorAnalysis errorAnalysis = (ErrorAnalysis) criterionAnalysis;
                 criteria.add(new CriterionDto(messageSource.getMessage("criterium.error", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), errorAnalysis.getErrorMessage()));
                 break;
@@ -226,7 +370,11 @@ public class EvaluationService {
 
             if (submission.mode().equals(SubmissionMode.RUN)) {
                 if (criterion.equals(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
-                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), criterionAnalysis.getAnalysisException() == null ? null : criterionAnalysis.getAnalysisException().getMessage()));
+                    assert criterionAnalysis instanceof SyntaxAnalysis;
+                    SyntaxAnalysis syntaxAnalysis = (SyntaxAnalysis) criterionAnalysis;
+                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), syntaxAnalysis.getErrorDescription()));
+
+
                     break;
                 }
 
@@ -241,7 +389,9 @@ public class EvaluationService {
             }
             if (submission.feedbackLevel().equals(1)) {
                 if (criterion.equals(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
-                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), criterionAnalysis.getAnalysisException() == null ? null : criterionAnalysis.getAnalysisException().getMessage()));
+                    assert criterionAnalysis instanceof SyntaxAnalysis;
+                    SyntaxAnalysis syntaxAnalysis = (SyntaxAnalysis) criterionAnalysis;
+                    criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), syntaxAnalysis.getErrorDescription()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_TABLES)) {
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.tables", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), criterionAnalysis.getAnalysisException() == null ? null : criterionAnalysis.getAnalysisException().getMessage()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_COLUMNS)) {
@@ -256,6 +406,7 @@ public class EvaluationService {
             }
             if (submission.feedbackLevel().equals(2)) {
                 if (criterion.equals(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
+                    assert criterionAnalysis instanceof SyntaxAnalysis;
                     SyntaxAnalysis syntaxAnalysis = (SyntaxAnalysis) criterionAnalysis;
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.syntax", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), syntaxAnalysis.getErrorDescription()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_TABLES)) {
@@ -272,7 +423,7 @@ public class EvaluationService {
                     ForeignKeysAnalysis foreignKeysAnalysis = (ForeignKeysAnalysis) criterionAnalysis;
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.foreignKeys", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), foreignKeysAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getMissingForeignKeys().size()
                         + " <br> " + messageSource.getMessage("criterium.surplusForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getSurplusForeignKeys().size() + " <br>" + messageSource.getMessage("criterium.wrongUpdateForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getWrongUpdateForeignKeys().size()
-                        + " <br> " + messageSource.getMessage("criterium.wrongDeleteForeignKeys", null, Locale.of(submission.language()))+ ": " + foreignKeysAnalysis.getWrongDeleteForeignKeys().size()));
+                        + " <br> " + messageSource.getMessage("criterium.wrongDeleteForeignKeys", null, Locale.of(submission.language())) + ": " + foreignKeysAnalysis.getWrongDeleteForeignKeys().size()));
                 } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_CONSTRAINTS)) {
                     ConstraintsAnalysis constraintsAnalysis = (ConstraintsAnalysis) criterionAnalysis;
                     criteria.add(new CriterionDto(messageSource.getMessage("criterium.constraints", null, Locale.of(submission.language())), null, criterionAnalysis.isCriterionSatisfied(), constraintsAnalysis.isCriterionSatisfied() ? null : messageSource.getMessage("criterium.missingConstraints", null, Locale.of(submission.language())) + ": " + constraintsAnalysis.getMissingConstraints().size()
@@ -356,7 +507,7 @@ public class EvaluationService {
                             .collect(Collectors.toList()));
                     }
                     if (!foreignKeysAnalysis.isSurplusForeignKeysEmpty()) {
-                        s += "<br> " + messageSource.getMessage("criterium.surplusForeignKeys", null, Locale.of(submission.language())) + ": " + String.join(", ", foreignKeysAnalysis.getSurplusForeignKeys().stream()
+                        s += "<br>" + messageSource.getMessage("criterium.surplusForeignKeys", null, Locale.of(submission.language())) + ": " + String.join(", ", foreignKeysAnalysis.getSurplusForeignKeys().stream()
                             .map(ErrorTupel::getError)
                             .collect(Collectors.toList()));
                     }
@@ -398,86 +549,195 @@ public class EvaluationService {
     }
 
     public GradingDto grade(HashMap<DDLEvaluationCriterion, DDLCriterionAnalysis> analysis, SqlDdlTask task, GradingDto gradingDto) {
+        BigDecimal points = BigDecimal.ZERO;
+        TablesAnalysis tablesAnalysis = (TablesAnalysis) analysis.get(DDLEvaluationCriterion.CORRECT_TABLES);
 
-        long points = 0;
-        String msg = null;
-        boolean correctTables = false;
-        boolean correctColumns = false;
-        for (Map.Entry<DDLEvaluationCriterion, DDLCriterionAnalysis> entry : analysis.entrySet()) {
-            DDLEvaluationCriterion criterion = entry.getKey();
-            DDLCriterionAnalysis criterionAnalysis = entry.getValue();
+        //surplus tables more than total tables of the solution are -table points
 
+        //not null check
+        if (tablesAnalysis != null) {
+            if (tablesAnalysis.getTotalNumOfTablesInSolution() < tablesAnalysis.getTotalNumOfTablesInSubmission()) {
+                points = points.subtract(BigDecimal.valueOf(task.getTablePoints()).multiply(BigDecimal.valueOf(tablesAnalysis.getTotalNumOfTablesInSolution() - tablesAnalysis.getTotalNumOfTablesInSolution())));
 
-            if (criterion.equals(DDLEvaluationCriterion.CORRECT_TABLES)) {
-                TablesAnalysis tablesAnalysis = (TablesAnalysis) criterionAnalysis;
-                points += task.getTablePoints() * tablesAnalysis.getTotalNumOfTables()
-                    - task.getTablePoints() * tablesAnalysis.getMissingTables().size()
-                    - task.getTablePoints() * tablesAnalysis.getSurplusTables().size();
+            }
+        } else
+            tablesAnalysis = new TablesAnalysis(); //no tables correct
 
-            } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_COLUMNS)) {
-                ColumnsAnalysis columnsAnalysis = (ColumnsAnalysis) criterionAnalysis;
-                for (ColumnsOfTable table : columnsAnalysis.getColumnsOfTables()) {
-                    if (table.isMissingColumnsEmpty() && table.isSurplusColumnsEmpty() && table.isWrongDatatypeColumnsEmpty() && table.isWrongDefaultColumnsEmpty() && table.isWrongNullColumnsEmpty()) {
-                        points += task.getColumnPoints();
+        for (String tablename : tablesAnalysis.getCorrectTables()) {
+            BigDecimal tablePoints = BigDecimal.ZERO;
+            tablePoints = tablePoints.add(BigDecimal.valueOf(task.getTablePoints()));
+            //different collumns errors have to be matched on column name for each column max one error counts
+            ColumnsAnalysis columnsAnalysis = (ColumnsAnalysis) analysis.get(DDLEvaluationCriterion.CORRECT_COLUMNS);
+            Optional<ColumnsOfTable> tableOpt = columnsAnalysis.getColumnsOfTables().stream().filter(t -> t.getTableName().equals(tablename)).findFirst();
+            if (tableOpt.isPresent()) {
+                ColumnsOfTable table = tableOpt.get();
+                Set<String> countedColumns = new HashSet<>();
+                for (ErrorTupel error : table.getMissingColumns()) {
+                    if (!countedColumns.contains(error.getError())) {
+                        tablePoints = tablePoints.subtract(BigDecimal.valueOf(task.getColumnPoints()));
+                        countedColumns.add(error.getError());
                     }
                 }
-
-
-            } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_PRIMARY_KEYS)) {
-                PrimaryKeysAnalysis primaryKeysAnalysis = (PrimaryKeysAnalysis) criterionAnalysis;
-                points += (long) task.getPrimaryKeyPoints() * primaryKeysAnalysis.getTotalPrimaryKeys()
-                    - (long) task.getPrimaryKeyPoints() * primaryKeysAnalysis.getMissingPrimaryKeys().size()
-                    - (long) task.getPrimaryKeyPoints() * primaryKeysAnalysis.getSurplusPrimaryKeys().size();
-            } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_FOREIGN_KEYS)) {
-                ForeignKeysAnalysis foreignKeysAnalysis = (ForeignKeysAnalysis) criterionAnalysis;
-                points += task.getForeignKeyPoints() * foreignKeysAnalysis.getTotalForeignKeys()
-                    - task.getForeignKeyPoints() * foreignKeysAnalysis.getMissingForeignKeys().size()
-                    - task.getForeignKeyPoints() * foreignKeysAnalysis.getSurplusForeignKeys().size()
-                    - task.getForeignKeyPoints() * foreignKeysAnalysis.getWrongUpdateForeignKeys().size()
-                    - task.getForeignKeyPoints() * foreignKeysAnalysis.getWrongDeleteForeignKeys().size();
-            }
-
-
-            if (criterionAnalysis.getAnalysisException() == null && criterionAnalysis.isCriterionSatisfied()) {
-                // Add the points for this criterion to the total points
-                if (criterion.equals(DDLEvaluationCriterion.CORRECT_TABLES)) {
-                    correctTables = true;
-                } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_COLUMNS)) {
-                    points += task.getColumnPoints();
-                    correctColumns = true;
-                } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_PRIMARY_KEYS)) {
-                    points += task.getPrimaryKeyPoints();
-                } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_FOREIGN_KEYS)) {
-                    points += task.getForeignKeyPoints();
+                for (ErrorTupel error : table.getSurplusColumns()) {
+                    if (!countedColumns.contains(error.getError())) {
+                        tablePoints = tablePoints.subtract(BigDecimal.valueOf(task.getColumnPoints()));
+                        countedColumns.add(error.getError());
+                    }
+                }
+                for (ErrorTupel error : table.getWrongDatatypeColumns()) {
+                    if (!countedColumns.contains(error.getError())) {
+                        tablePoints = tablePoints.subtract(BigDecimal.valueOf(task.getColumnPoints()));
+                        countedColumns.add(error.getError());
+                    }
+                }
+                for (ErrorTupel error : table.getWrongDefaultColumns()) {
+                    if (!countedColumns.contains(error.getError())) {
+                        tablePoints = tablePoints.subtract(BigDecimal.valueOf(task.getColumnPoints()));
+                        countedColumns.add(error.getError());
+                    }
+                }
+                for (ErrorTupel error : table.getWrongNullColumns()) {
+                    if (!countedColumns.contains(error.getError())) {
+                        tablePoints = tablePoints.subtract(BigDecimal.valueOf(task.getColumnPoints()));
+                        countedColumns.add(error.getError());
+                    }
                 }
             }
+            //Primary key is Correct or Wrong for this table
+            PrimaryKeysAnalysis primaryKeysAnalysis = (PrimaryKeysAnalysis) analysis.get(DDLEvaluationCriterion.CORRECT_PRIMARY_KEYS);
+            boolean pkMissing = primaryKeysAnalysis.getMissingPrimaryKeys().stream().anyMatch(e -> e.getSource().equals(tablename));
+            boolean pkSurplus = primaryKeysAnalysis.getSurplusPrimaryKeys().stream().anyMatch(e -> e.getSource().equals(tablename));
+            if (pkMissing || pkSurplus) {
+                tablePoints = tablePoints.subtract(BigDecimal.valueOf(task.getPrimaryKeyPoints()));
+            }
 
+
+            //each foreign key - points once
+            ForeignKeysAnalysis foreignKeysAnalysis = (ForeignKeysAnalysis) analysis.get(DDLEvaluationCriterion.CORRECT_FOREIGN_KEYS);
+            Set<String> countedFKs = new HashSet<>();
+            for (ErrorTupel error : foreignKeysAnalysis.getMissingForeignKeys()) {
+                if (!countedFKs.contains(error.getError()) && error.getSource().startsWith(tablename)) {
+                    tablePoints = tablePoints.subtract(BigDecimal.valueOf(task.getForeignKeyPoints()));
+                    countedFKs.add(error.getError());
+                }
+            }
+            for (ErrorTupel error : foreignKeysAnalysis.getSurplusForeignKeys()) {
+                if (!countedFKs.contains(error.getError()) && error.getSource().startsWith(tablename)) {
+                    tablePoints = tablePoints.subtract(BigDecimal.valueOf(task.getForeignKeyPoints()));
+                    countedFKs.add(error.getError());
+                }
+            }
+            for (ErrorTupel error : foreignKeysAnalysis.getWrongUpdateForeignKeys()) {
+                if (!countedFKs.contains(error.getError()) && error.getSource().startsWith(tablename)) {
+                    tablePoints = tablePoints.subtract(BigDecimal.valueOf(task.getForeignKeyPoints()));
+                    countedFKs.add(error.getError());
+                }
+            }
+            for (ErrorTupel error : foreignKeysAnalysis.getWrongDeleteForeignKeys()) {
+                if (!countedFKs.contains(error.getError()) && error.getSource().startsWith(tablename)) {
+                    tablePoints = tablePoints.subtract(BigDecimal.valueOf(task.getForeignKeyPoints()));
+                    countedFKs.add(error.getError());
+                }
+            }
+            //check if tablePoints went below zero
+            if (tablePoints.compareTo(BigDecimal.ZERO) < 0) {
+                tablePoints = BigDecimal.ZERO;
+            }
+            points = points.add(tablePoints);
         }
-        for (Map.Entry<DDLEvaluationCriterion, DDLCriterionAnalysis> entry : analysis.entrySet()) {
-            DDLEvaluationCriterion criterion = entry.getKey();
-            DDLCriterionAnalysis criterionAnalysis = entry.getValue();
-
-
-            // Check that there was no exception analysing the criterion and also the criterion is satisfied
-            if (criterionAnalysis.getAnalysisException() == null && criterionAnalysis.isCriterionSatisfied()) {
-                // Add the points for this criterion to the total points
-                if (criterion.equals(DDLEvaluationCriterion.CORRECT_CONSTRAINTS) && correctTables && correctColumns) {
-                    points += task.getConstraintPoints();
-                }
-            } else {
-                // Check if the criterion is Syntax -> return with 0 points and log
-                if (criterion.equals(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
-                    msg = "SQL DDL Syntax not correct.";
-                    LOG.info(msg);
-
-                    return new GradingDto(task.getMaxPoints(), BigDecimal.ZERO, msg, null);
-                }
-            }
+        //deduct points if there is any error in constraints
+        ConstraintsAnalysis constraintsAnalysis = (ConstraintsAnalysis) analysis.get(DDLEvaluationCriterion.CORRECT_CONSTRAINTS);
+        if(constraintsAnalysis == null) {
+            constraintsAnalysis = new ConstraintsAnalysis(); //no constraints correct
         }
-
-        // Set the reached points
-        gradingDto = new GradingDto(task.getMaxPoints(), BigDecimal.valueOf(points), null, null);
-
-        return gradingDto;
+        if (constraintsAnalysis.isCriterionSatisfied()) {
+            points = points.add(BigDecimal.valueOf(task.getConstraintPoints()));
+        }
+        return new GradingDto(task.getMaxPoints(), points.max(BigDecimal.ZERO), null, null);
     }
+
+
+
+
+//        long points = 0;
+//        String msg = null;
+//        boolean correctTables = false;
+//        boolean correctColumns = false;
+//        for (Map.Entry<DDLEvaluationCriterion, DDLCriterionAnalysis> entry : analysis.entrySet()) {
+//            DDLEvaluationCriterion criterion = entry.getKey();
+//            DDLCriterionAnalysis criterionAnalysis = entry.getValue();
+//
+//
+//            if (criterion.equals(DDLEvaluationCriterion.CORRECT_TABLES)) {
+//                TablesAnalysis tablesAnalysis = (TablesAnalysis) criterionAnalysis;
+//                points += task.getTablePoints() * tablesAnalysis.getTotalNumOfTables()
+//                    - task.getTablePoints() * tablesAnalysis.getMissingTables().size()
+//                    - task.getTablePoints() * tablesAnalysis.getSurplusTables().size();
+//
+//            } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_COLUMNS)) {
+//                ColumnsAnalysis columnsAnalysis = (ColumnsAnalysis) criterionAnalysis;
+//                for (ColumnsOfTable table : columnsAnalysis.getColumnsOfTables()) {
+//                    if (table.isMissingColumnsEmpty() && table.isSurplusColumnsEmpty() && table.isWrongDatatypeColumnsEmpty() && table.isWrongDefaultColumnsEmpty() && table.isWrongNullColumnsEmpty()) {
+//                        points += task.getColumnPoints();
+//                    }
+//                }
+//
+//
+//            } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_PRIMARY_KEYS)) {
+//                PrimaryKeysAnalysis primaryKeysAnalysis = (PrimaryKeysAnalysis) criterionAnalysis;
+//                points += (long) task.getPrimaryKeyPoints() * primaryKeysAnalysis.getTotalPrimaryKeys()
+//                    - (long) task.getPrimaryKeyPoints() * primaryKeysAnalysis.getMissingPrimaryKeys().size()
+//                    - (long) task.getPrimaryKeyPoints() * primaryKeysAnalysis.getSurplusPrimaryKeys().size();
+//            } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_FOREIGN_KEYS)) {
+//                ForeignKeysAnalysis foreignKeysAnalysis = (ForeignKeysAnalysis) criterionAnalysis;
+//                points += task.getForeignKeyPoints() * foreignKeysAnalysis.getTotalForeignKeys()
+//                    - task.getForeignKeyPoints() * foreignKeysAnalysis.getMissingForeignKeys().size()
+//                    - task.getForeignKeyPoints() * foreignKeysAnalysis.getSurplusForeignKeys().size()
+//                    - task.getForeignKeyPoints() * foreignKeysAnalysis.getWrongUpdateForeignKeys().size()
+//                    - task.getForeignKeyPoints() * foreignKeysAnalysis.getWrongDeleteForeignKeys().size();
+//            }
+//
+//
+//            if (criterionAnalysis.getAnalysisException() == null && criterionAnalysis.isCriterionSatisfied()) {
+//                // Add the points for this criterion to the total points
+//                if (criterion.equals(DDLEvaluationCriterion.CORRECT_TABLES)) {
+//                    correctTables = true;
+//                } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_COLUMNS)) {
+//                    points += task.getColumnPoints();
+//                    correctColumns = true;
+//                } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_PRIMARY_KEYS)) {
+//                    points += task.getPrimaryKeyPoints();
+//                } else if (criterion.equals(DDLEvaluationCriterion.CORRECT_FOREIGN_KEYS)) {
+//                    points += task.getForeignKeyPoints();
+//                }
+//            }
+//
+//        }
+//        for (Map.Entry<DDLEvaluationCriterion, DDLCriterionAnalysis> entry : analysis.entrySet()) {
+//            DDLEvaluationCriterion criterion = entry.getKey();
+//            DDLCriterionAnalysis criterionAnalysis = entry.getValue();
+//
+//
+//            // Check that there was no exception analysing the criterion and also the criterion is satisfied
+//            if (criterionAnalysis.getAnalysisException() == null && criterionAnalysis.isCriterionSatisfied()) {
+//                // Add the points for this criterion to the total points
+//                if (criterion.equals(DDLEvaluationCriterion.CORRECT_CONSTRAINTS) && correctTables && correctColumns) {
+//                    points += task.getConstraintPoints();
+//                }
+//            } else {
+//                // Check if the criterion is Syntax -> return with 0 points and log
+//                if (criterion.equals(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
+//                    msg = "SQL DDL Syntax not correct.";
+//                    LOG.info(msg);
+//
+//                    return new GradingDto(task.getMaxPoints(), BigDecimal.ZERO, msg, null);
+//                }
+//            }
+//        }
+//
+//        // Set the reached points
+//        gradingDto = new GradingDto(task.getMaxPoints(), BigDecimal.valueOf(points), null, null);
+//
+//        return gradingDto;
 }
+

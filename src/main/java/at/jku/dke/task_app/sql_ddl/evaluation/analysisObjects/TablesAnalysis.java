@@ -14,7 +14,9 @@ public class TablesAnalysis extends AbstractDDLCriterionAnalysis implements DDLC
     //region Fields
     private List<String> missingTables;
     private List<String> surplusTables;
-    private int totalNumOfTables;
+    private List<String> correctTables;
+    private int totalNumOfTablesInSolution;
+    private int totalNumOfTablesInSubmission;
     //endregion
 
     /**
@@ -23,16 +25,30 @@ public class TablesAnalysis extends AbstractDDLCriterionAnalysis implements DDLC
     public TablesAnalysis() {
         this.missingTables = new ArrayList<>();
         this.surplusTables = new ArrayList<>();
-        this.totalNumOfTables = 0;
+        this.correctTables = new ArrayList<>();
+        this.totalNumOfTablesInSolution = 0;
+        this.totalNumOfTablesInSubmission = 0;
+    }
+    public int getTotalNumOfTablesInSubmission() {
+        return totalNumOfTablesInSubmission;
+    }
+    public void setTotalNumOfTablesInSubmission(int totalNumOfTablesInSubmission) {
+        this.totalNumOfTablesInSubmission = totalNumOfTablesInSubmission;
     }
 
-
-    public int getTotalNumOfTables() {
-        return totalNumOfTables;
+    public List<String> getCorrectTables() {
+        return correctTables;
+    }
+    public void setCorrectTables(List<String> correctTables) {
+        this.correctTables = correctTables;
     }
 
-    public void setTotalNumOfTables(int totalNumOfTables) {
-        this.totalNumOfTables = totalNumOfTables;
+    public int getTotalNumOfTablesInSolution() {
+        return totalNumOfTablesInSolution;
+    }
+
+    public void setTotalNumOfTablesInSolution(int totalNumOfTablesInSolution) {
+        this.totalNumOfTablesInSolution = totalNumOfTablesInSolution;
     }
 
     /**
@@ -147,6 +163,10 @@ public class TablesAnalysis extends AbstractDDLCriterionAnalysis implements DDLC
      */
     public void removeSurplusTables(List<String> tables) {
         this.surplusTables.remove(tables);
+    }
+
+    public void addCorrectTable(String userTable) {
+        this.correctTables.add(userTable);
     }
     //endregion
 

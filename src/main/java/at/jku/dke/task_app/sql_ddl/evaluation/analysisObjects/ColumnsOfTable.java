@@ -279,4 +279,9 @@ public class ColumnsOfTable{
         this.wrongNullColumns.add(column);
     }
     //endregion
+
+    public String getTableName() {
+        return tableName;
+    }
+
 }

@@ -1,15 +1,16 @@
 package at.jku.dke.task_app.sql_ddl.evaluation;
 
 
+import at.jku.dke.task_app.sql_ddl.data.entities.SqlDdlTask;
 import at.jku.dke.task_app.sql_ddl.evaluation.analysisObjects.*;
 import ch.qos.logback.classic.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.sql.*;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.Executor;
 
 /**
  * The type Ddl analyzer.
@@ -34,6 +35,14 @@ public class DDLAnalyzer {
     private boolean isEveryCriterionSatisfied;
     //endregion
 
+    private final String[] sqlKeywords = new String[]{
+        "create", "alter", "drop", "truncate", "comment", "rename",
+        "view", "table", "database", "index", "schema",
+        "in", "on", "as", "with", "check", "constraint",
+        "foreign", "key", "primary", "references", "unique", "default",
+        "not", "null", "cascade", "restrict", "no", "action", "delete"
+    };
+
     /**
      * Creates a new instance of class Ddl analyzer.
      */
@@ -50,16 +59,16 @@ public class DDLAnalyzer {
      *
      * @param submission Specifies the submitted solution
      * @param config     Specifies the analysis configuration
+     * @param task
      * @return Returns the analysis object
      * @throws SQLException The sql exception.
      */
-    public HashMap<DDLEvaluationCriterion, DDLCriterionAnalysis> analyze(Serializable submission, DDLAnalyzerConfig config) throws SQLException {
+    public HashMap<DDLEvaluationCriterion, DDLCriterionAnalysis> analyze(Serializable submission, DDLAnalyzerConfig config, SqlDdlTask task) throws SQLException {
         String msg;
         String submittedQuery;
         List<String> submittedStatements;
         DDLCriterionAnalysis criterionAnalysis;
         HashMap<DDLEvaluationCriterion, DDLCriterionAnalysis> analysis = new HashMap<>();
-
 
 
         // Check if submission is null
@@ -94,7 +103,7 @@ public class DDLAnalyzer {
         }
 
         //check if submission contains a Assertion Statement
-        if(submittedQuery.contains("assertion")||submittedQuery.contains("assert")){
+        if (submittedQuery.contains("assertion") || submittedQuery.contains("assert")) {
             msg = "";
             msg = msg.concat("Analysis stopped with errors. ");
             msg = msg.concat("Submission contains an assertion statement.");
@@ -126,11 +135,10 @@ public class DDLAnalyzer {
         userSchema = userConn.getSchema();
 
 
-
         // Execute query
         // Check correct syntax
         if (config.isCriterionToAnalyze(DDLEvaluationCriterion.CORRECT_SYNTAX)) {
-            criterionAnalysis = this.analyzeSyntax(submittedQuery);
+            criterionAnalysis = this.analyzeSyntax(submittedQuery, task.getWordlist());
             analysis.put(DDLEvaluationCriterion.CORRECT_SYNTAX, criterionAnalysis);
             if (criterionAnalysis.getAnalysisException() != null && !criterionAnalysis.isCriterionSatisfied()) {
 
@@ -211,7 +219,7 @@ public class DDLAnalyzer {
      * @param submittedQuery Specifies the submitted ddl statement
      * @return Returns a criterion analysis object
      */
-    private DDLCriterionAnalysis analyzeSyntax(String submittedQuery) {
+    private DDLCriterionAnalysis analyzeSyntax(String submittedQuery, String wordlist) {
         this.logger.info("Analyze syntax");
 
         SyntaxAnalysis syntaxAnalysis = new SyntaxAnalysis();
@@ -224,14 +232,56 @@ public class DDLAnalyzer {
             stmt.executeUpdate(submittedQuery);
             userConn.commit();
         } catch (SQLException ex) {
-                syntaxAnalysis.setFoundError(true);
-                syntaxAnalysis.setCriterionIsSatisfied(false);
-                syntaxAnalysis.setErrorDescription(ex.toString());
-                syntaxAnalysis.setAnalysisException(new AnalysisException(ex.toString()));
+            syntaxAnalysis.setFoundError(true);
+            syntaxAnalysis.setCriterionIsSatisfied(false);
+            syntaxAnalysis.setErrorDescription(ex.toString());
+            syntaxAnalysis.setAnalysisException(new AnalysisException(ex.toString()));
             return syntaxAnalysis;
         }
 
         syntaxAnalysis.setCriterionIsSatisfied(true);
+
+
+        String wrongWords = "";
+        String[] submissionWords = submittedQuery.split("[^a-zA-Z0-9_]");
+
+
+        String[] solutionWordlist = wordlist.split(";");
+
+        solutionWordlist = Arrays.stream(solutionWordlist).map(String::toLowerCase).toArray(String[]::new);
+
+        //put to lower case
+        submissionWords = Arrays.stream(submissionWords).map(String::toLowerCase).toArray(String[]::new);
+
+        //filter out duplicates
+        submissionWords = Arrays.stream(submissionWords).distinct().toArray(String[]::new);
+
+        //filter numbers
+        submissionWords = Arrays.stream(submissionWords).filter(s -> !s.matches(".*\\d+.*")).toArray(String[]::new);
+
+        //filter empty string in both wordlists
+        submissionWords = Arrays.stream(submissionWords).filter(s -> !s.isEmpty()).toArray(String[]::new);
+        solutionWordlist = Arrays.stream(solutionWordlist).filter(s -> !s.isEmpty()).toArray(String[]::new);
+
+        for (String word : submissionWords) {
+            if (!Arrays.stream(solutionWordlist).anyMatch(word::equals)) {
+                //check if word in sqlKeywords
+                if (!Arrays.stream(sqlKeywords).anyMatch(word::equals)) {
+                    if (wrongWords.length() > 0) {
+                        wrongWords = wrongWords.concat(", ");
+                    }
+                    wrongWords = wrongWords.concat(word);
+                }
+            }
+        }
+
+        if(wrongWords.length() > 0) {
+            syntaxAnalysis.setCriterionIsSatisfied(false);
+            syntaxAnalysis.setErrorDescription(wrongWords);
+        }
+
+
+
         this.logger.info("Finished syntax analysis. Criterion satisfied: " + syntaxAnalysis.isCriterionSatisfied());
         return syntaxAnalysis;
     }
@@ -261,6 +311,7 @@ public class DDLAnalyzer {
 
                     // Compare table names
                     if (userTable.equalsIgnoreCase(systemTable)) {
+                        tablesAnalysis.addCorrectTable(userTable);
                         exists = true;
                         break;
                     }
@@ -275,7 +326,8 @@ public class DDLAnalyzer {
                 userRs.beforeFirst();
                 exists = false;
             }
-            tablesAnalysis.setTotalNumOfTables(numberOfTables);
+            tablesAnalysis.setTotalNumOfTablesInSolution(numberOfTables);
+            tablesAnalysis.setTotalNumOfTablesInSubmission(userRs.getFetchSize());
             // Reset variable
             systemRS.beforeFirst();
 
