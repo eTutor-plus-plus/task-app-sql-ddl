@@ -271,6 +271,29 @@ public class DBHelper {
 
     }
 
+
+    public static void clearUserSchema(String schemaName) {
+        try {
+
+            //drop all tables from schema
+            Connection conn = getSystemConnection();
+            Statement stmt = conn.createStatement();
+            Statement stmt2 = conn.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = '" + schemaName + "'");
+            while (rs.next()) {
+                String tableName = rs.getString("table_name");
+                stmt2.executeUpdate("DROP TABLE IF EXISTS  " + schemaName + "." + tableName + " CASCADE");
+            }
+            conn.commit();
+            stmt.close();
+            stmt2.close();
+
+
+        } catch (SQLException ex) {
+            logger.error("Error while resetting user connection.", ex);
+        }
+    }
+
     /**
      * Gets the logger.
      *

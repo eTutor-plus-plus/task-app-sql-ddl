@@ -133,7 +133,7 @@ public class DDLAnalyzer {
         // Set schema variables
         exerciseSchema = exerciseConn.getSchema();
         userSchema = userConn.getSchema();
-
+        DBHelper.clearUserSchema(userSchema);
 
         // Execute query
         // Check correct syntax
@@ -277,7 +277,7 @@ public class DDLAnalyzer {
 
             if (wrongWords.length() > 0) {
                 syntaxAnalysis.setCriterionIsSatisfied(false);
-                syntaxAnalysis.setErrorDescription("Wrong words: "+wrongWords);
+                syntaxAnalysis.setErrorDescription("Wrong Table/Attribute name: "+wrongWords);
             }
         }
 

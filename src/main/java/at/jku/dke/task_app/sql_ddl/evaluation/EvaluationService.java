@@ -219,10 +219,20 @@ public class EvaluationService {
         List<CriterionDto> criteria = new ArrayList<>();
 
         if (!submission.mode().equals(SubmissionMode.RUN) && submission.feedbackLevel() > 2 && analysis.get(DDLEvaluationCriterion.CORRECT_SYNTAX).isCriterionSatisfied()) {
+
+
+
             //Grading Information Builder
             CriterionDto criterionDtoGradingInfo;
             TablesAnalysis tablesAnalysisGradingInfo = (TablesAnalysis) analysis.get(DDLEvaluationCriterion.CORRECT_TABLES);
+            if(tablesAnalysisGradingInfo==null){
+
+                return new GradingDto(gradingDto.maxPoints(), gradingDto.points(), messageSource.getMessage("feedback.incorrect", null, Locale.of(submission.language())), criteria);
+            }
             StringBuilder sb = new StringBuilder();
+            if (tablesAnalysisGradingInfo.getTotalNumOfTablesInSolution() < tablesAnalysisGradingInfo.getTotalNumOfTablesInSubmission()) {
+                sb.append("There are " +(tablesAnalysisGradingInfo.getTotalNumOfTablesInSubmission() - tablesAnalysisGradingInfo.getTotalNumOfTablesInSolution())+ " tables more in your submission compared to the solution. -"+ (tablesAnalysisGradingInfo.getTotalNumOfTablesInSubmission() - tablesAnalysisGradingInfo.getTotalNumOfTablesInSolution())* task.getTablePoints()+ " Points<br><br>");
+            }
             for (String table : tablesAnalysisGradingInfo.getCorrectTables()) {
                 StringBuilder sbDetails = new StringBuilder();
                 int tablepoints = task.getTablePoints();
