@@ -252,7 +252,7 @@ public class DDLAnalyzer {
                 } else {
                     if(isConstraint){
                         //remove constraint name
-                        submittedQuery = submittedQuery.replace(s, " ");
+                        submissionWords = Arrays.stream(submissionWords).filter(word -> !word.equals(s)).toArray(String[]::new);
                         isConstraint = false;
                     }
                 }
