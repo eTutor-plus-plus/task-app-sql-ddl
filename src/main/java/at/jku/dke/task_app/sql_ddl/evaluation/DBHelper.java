@@ -207,7 +207,7 @@ public class DBHelper {
             ResultSet rs = stmt.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = '" + schemaName + "'");
             while (rs.next()) {
                 String tableName = rs.getString("table_name");
-                stmt2.executeUpdate("DROP TABLE IF EXISTS  " + schemaName + "." + tableName + " CASCADE");
+                stmt2.executeUpdate("DROP TABLE IF EXISTS  " + schemaName + "." + quoteIdent(tableName) + " CASCADE");
             }
             conn.commit();
             stmt.close();
@@ -224,8 +224,6 @@ public class DBHelper {
 //            adminConn.commit();
 //            //close admin connection
 //            stmt.close();
-
-
 
 
             // Reset database schema
@@ -251,7 +249,7 @@ public class DBHelper {
      *
      * @param schemaName The schema name.
      */
-    public static void clearExerciseSchemaTables(String schemaName){
+    public static void clearExerciseSchemaTables(String schemaName) {
 
         try {
             Connection conn = getSystemConnection();
@@ -282,7 +280,7 @@ public class DBHelper {
             ResultSet rs = stmt.executeQuery("SELECT table_name FROM information_schema.tables WHERE table_schema = '" + schemaName + "'");
             while (rs.next()) {
                 String tableName = rs.getString("table_name");
-                stmt2.executeUpdate("DROP TABLE IF EXISTS  " + schemaName + "." + tableName + " CASCADE");
+                stmt2.executeUpdate("DROP TABLE IF EXISTS  " + schemaName + "." + quoteIdent(tableName) + " CASCADE");
             }
             conn.commit();
             stmt.close();
@@ -293,6 +291,17 @@ public class DBHelper {
             logger.error("Error while resetting user connection.", ex);
         }
     }
+
+    /**
+     * Function to quote an identifier (e.g., table name, column name)
+     *
+     * @param ident The identifier.
+     * @return The quoted identifier.
+     */
+    private static String quoteIdent(String ident) {
+        return "\"" + ident.replace("\"", "\"\"") + "\"";
+    }
+
 
     /**
      * Gets the logger.
