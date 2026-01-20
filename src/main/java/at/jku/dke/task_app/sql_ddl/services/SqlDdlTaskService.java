@@ -111,7 +111,7 @@ public class SqlDdlTaskService extends BaseTaskService<SqlDdlTask, ModifySqlDdlT
         if (!dto.taskType().equals("sql-ddl")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid task type.");
         }
-        task.setSolution(dto.additionalData().solution());
+        task.setSolution(dto.additionalData().solution().toLowerCase());
         task.setInsertStatements(dto.additionalData().insertStatements());
         task.setTablePoints(dto.additionalData().tablePoints());
         task.setColumnPoints(dto.additionalData().columnPoints());
@@ -141,7 +141,7 @@ public class SqlDdlTaskService extends BaseTaskService<SqlDdlTask, ModifySqlDdlT
             switchSchemaStmt.execute("SET search_path TO " + task.getSchemaName());
 
             // Execute ddl solution
-            PreparedStatement solutionStmt = con.prepareStatement(task.getSolution());
+            PreparedStatement solutionStmt = con.prepareStatement(task.getSolution().toLowerCase());
             solutionStmt.execute();
 
             // Set schema to public schema

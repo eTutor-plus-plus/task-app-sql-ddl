@@ -90,6 +90,7 @@ public class DDLAnalyzer {
 
             // Remove all commits in submission
             submittedQuery = submittedQuery.replace("commit;", "").replace("commit", "").replace("COMMIT;", "").replace("COMMIT", "");
+            submittedQuery = submittedQuery.toLowerCase();
         } else {
             msg = "";
             msg = msg.concat("Analysis stopped with errors. ");
@@ -244,6 +245,7 @@ public class DDLAnalyzer {
         if (wordlist != null && !wordlist.isEmpty()) {
             String wrongWords = "";
             String[] submissionWords = submittedQuery.split("[^a-zA-Z0-9_]");
+            submissionWords = Arrays.stream(submissionWords).filter(s -> !s.isEmpty()).toArray(String[]::new);
             //filter constraint names by excluding string after keyword "constraint"
             boolean isConstraint = false;
             for(String s : submissionWords){
@@ -251,8 +253,8 @@ public class DDLAnalyzer {
                     isConstraint = true;
                 } else {
                     if(isConstraint){
-                        //remove constraint name
-                        submittedQuery = submittedQuery.replace(s, " ");
+                        //remove constraint name from wordlist
+                        submissionWords = Arrays.stream(submissionWords).filter(word -> !word.equalsIgnoreCase(s)).toArray(String[]::new);
                         isConstraint = false;
                     }
                 }
@@ -410,7 +412,7 @@ public class DDLAnalyzer {
                 ColumnsOfTable columnsOfTable = new ColumnsOfTable(tableName);
 
                 ResultSet userColumns = userMetadata.getColumns(null, userSchema, tableName, null);
-                ResultSet systemColumns = exerciseMetadata.getColumns(null, exerciseSchema, tableName, null);
+                ResultSet systemColumns = exerciseMetadata.getColumns(null, exerciseSchema, tableName.toLowerCase(), null);
 
                 // Search for missing columns
                 while (systemColumns.next()) {
@@ -537,7 +539,7 @@ public class DDLAnalyzer {
 
                 ResultSet userPrimaryKeys = userMetadata.getPrimaryKeys(null, userSchema, tableName);
 
-                ResultSet systemPrimaryKeys = exerciseMetadata.getPrimaryKeys(null, exerciseSchema, tableName);
+                ResultSet systemPrimaryKeys = exerciseMetadata.getPrimaryKeys(null, exerciseSchema, tableName.toLowerCase());
                 totalPrimaryKeys += systemPrimaryKeys.getFetchSize();
                 // Search for missing primary keys
                 while (systemPrimaryKeys.next()) {
@@ -623,7 +625,7 @@ public class DDLAnalyzer {
                 String tableName = userTables.getString("TABLE_NAME");
 
                 ResultSet userForeignKeys = userMetadata.getImportedKeys(null, userSchema, tableName);
-                ResultSet systemForeignKeys = exerciseMetadata.getImportedKeys(null, exerciseSchema, tableName);
+                ResultSet systemForeignKeys = exerciseMetadata.getImportedKeys(null, exerciseSchema, tableName.toLowerCase());
                 totalForeignKeys += systemForeignKeys.getFetchSize();
                 // Search for missing foreign keys
                 while (systemForeignKeys.next()) {
@@ -732,7 +734,7 @@ public class DDLAnalyzer {
                 String tableName = userTables.getString("TABLE_NAME");
 
                 ResultSet userConstraints = userMetadata.getIndexInfo(null, userSchema, tableName, true, true);
-                ResultSet systemConstraints = exerciseMetadata.getIndexInfo(null, exerciseSchema, tableName, true, true);
+                ResultSet systemConstraints = exerciseMetadata.getIndexInfo(null, exerciseSchema, tableName.toLowerCase(), true, true);
 
                 // Search for missing unique constraints
                 while (systemConstraints.next()) {
