@@ -244,7 +244,19 @@ public class DDLAnalyzer {
         if (wordlist != null && !wordlist.isEmpty()) {
             String wrongWords = "";
             String[] submissionWords = submittedQuery.split("[^a-zA-Z0-9_]");
-
+            //filter constraint names by excluding string after keyword "constraint"
+            boolean isConstraint = false;
+            for(String s : submissionWords){
+                if(s.equalsIgnoreCase("constraint")){
+                    isConstraint = true;
+                } else {
+                    if(isConstraint){
+                        //remove constraint name
+                        submittedQuery = submittedQuery.replace(s, " ");
+                        isConstraint = false;
+                    }
+                }
+            }
 
             String[] solutionWordlist = wordlist.split(";");
 
