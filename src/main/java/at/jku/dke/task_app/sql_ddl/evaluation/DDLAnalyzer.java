@@ -253,8 +253,10 @@ public class DDLAnalyzer {
                     isConstraint = true;
                 } else {
                     if(isConstraint){
+
                         //remove constraint name from wordlist
                         submissionWords = Arrays.stream(submissionWords).filter(word -> !word.equalsIgnoreCase(s)).toArray(String[]::new);
+
                         isConstraint = false;
                     }
                 }
